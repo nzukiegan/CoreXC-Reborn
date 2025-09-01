@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36327.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "CoreXC Reborn", "CoreXC Reborn.vbproj", "{346C85D8-4852-4B17-9F9A-EB506CB57DEB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{346C85D8-4852-4B17-9F9A-EB506CB57DEB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{346C85D8-4852-4B17-9F9A-EB506CB57DEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{346C85D8-4852-4B17-9F9A-EB506CB57DEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{346C85D8-4852-4B17-9F9A-EB506CB57DEB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5C9F0C22-3C09-4C8E-B0C3-4F7597732E2D}
+	EndGlobalSection
+EndGlobal
