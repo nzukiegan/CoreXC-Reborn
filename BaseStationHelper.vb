@@ -1,7 +1,7 @@
 ﻿Imports System.Data.SqlClient
 
 Public Class BaseStationHelper
-    Private connectionString As String = $"Server=localhost;Database=CoreXCDb;Trusted_Connection=True;"
+    Private connectionString As String = $"Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Integrated Security=true;"
 
     ' Method to get base station data by channel number
     Public Function GetBaseStationByChannel(channelNumber As Integer) As DataTable
@@ -9,7 +9,7 @@ Public Class BaseStationHelper
 
         Using connection As New SqlConnection(connectionString)
             connection.Open()
-            Dim query As String = "SELECT * FROM base_stations WHERE channel_number = @ChannelNumber ORDER BY last_updated DESC"
+            Dim query As String = "SELECT * FROM base_stations WHERE channel_number = @ChannelNumber"
 
             Using command As New SqlCommand(query, connection)
                 command.Parameters.AddWithValue("@ChannelNumber", channelNumber)

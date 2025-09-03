@@ -302,6 +302,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="db_schema.sql" />
+    <None Include="Resources\refreshBtn.png" />
+    <None Include="Resources\image_processing20210616-28547-ctf83.png" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Scripts\" />

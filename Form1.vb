@@ -1,43 +1,68 @@
 ﻿Imports System.ComponentModel
+Imports System.ComponentModel.Design
 Imports System.Data.SqlClient
-Imports System.Net.NetworkInformation
-Imports System.Threading
 Imports System.Net
+Imports System.Net.NetworkInformation
 Imports System.Net.Sockets
-Imports System.Windows.Forms.DataVisualization.Charting
-Imports System.Windows.Forms
 Imports System.Text
+Imports System.Text.RegularExpressions
+Imports System.Threading
+Imports System.Windows.Forms
+Imports System.Windows.Forms.DataVisualization.Charting
+Imports System.Drawing.Drawing2D
 
 Public Class Form1
 
-    Private ReadOnly connectionString As String = "Server=localhost;Database=CoreXCDb;Trusted_Connection=True;"
-    Private buttonStates As New Dictionary(Of Integer, Boolean)()
+    Private connectionString As String
+    Private buttonStates As Dictionary(Of Integer, Boolean)
     Private WithEvents pingTimer As System.Windows.Forms.Timer
-    Private originalValues As New Dictionary(Of String, String)()
-    Private editModeButtons As New Dictionary(Of Integer, Button)()
+    Private originalValues As Dictionary(Of String, String)
+    Private editModeButtons As Dictionary(Of Integer, Button)
     Private udpClientLteWcdma As UdpClient
     Private udpClientGsm As UdpClient
     Private receivingThread As Thread
-    Private isListening As Boolean = False
+    Private isListening As Boolean
+    Private lteWcdmaEndpoint As IPEndPoint
+    Private gsmEndpoint As IPEndPoint
+    Private analyzingGsm As Boolean
+    Private analyzingLteWcdma As Boolean
+    Private progressPanel As Panel
+    Private progressLabel As Label
+    Private progressBar As ProgressBar
+    Private WithEvents refreshTimer As New System.Windows.Forms.Timer()
+    Private refreshAngle As Single = 0
+    Private refreshIcon As Bitmap
+    Private isRefreshing As Boolean = False
+    Private refreshBtn As New Button
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
-            ' Initialize edit mode buttons dictionary
+            connectionString = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+            buttonStates = New Dictionary(Of Integer, Boolean)()
+            originalValues = New Dictionary(Of String, String)()
+            editModeButtons = New Dictionary(Of Integer, Button)()
+            isListening = False
+            lteWcdmaEndpoint = New IPEndPoint(IPAddress.Parse("192.168.1.99"), 9001)
+            gsmEndpoint = New IPEndPoint(IPAddress.Parse("192.168.1.100"), 9001)
+            analyzingGsm = False
             InitializeEditModeButtons()
-
-            Dim dbInitializer As New DatabaseInitializer("localhost", "CoreXCDb")
-            Await dbInitializer.EnsureDatabaseExistsAsync()
-            Await dbInitializer.ApplySchemaAsync()
+            InitializeProgressIndicator()
+            AddRefreshButton()
+            'Dim dbInitializer As New DatabaseInitializer("(localdb)\\MSSQLLocalDB", "CoreXCDb1")
+            'Await dbInitializer.EnsureDatabaseExistsAsync()
+            'Await dbInitializer.ApplySchemaAsync()
+            'Await dbInitializer.SeedOperatorsAsync()
+            'connectToAnalyzerBoard()
             disableAllBtns()
-            LoadDataToGridViews()
-            LoadBaseStationData()
-            LoadBaseStationData1()
-            SetupDataGridViewEvents()
+            'LoadDataToGridViews()
+            'LoadBaseStationData()
+            'LoadBaseStationData1()
+            'SetupDataGridViewEvents()
             AddInputConstraints()
             AddAdvancedConstraints()
             SetupValidationEvents()
-            LoadBlacklistData()
-            LoadWhitelistData()
+            'LoadBlacklistData()
+            'LoadWhitelistData()
             MessageBox.Show("Database and schema ready!", "Success")
             pingTimer = New System.Windows.Forms.Timer()
             pingTimer.Interval = 5000 ' Check every 5 seconds
@@ -51,13 +76,39 @@ Public Class Form1
             Chart1.ChartAreas(0).AxisX.Title = "Provider"
             Chart1.ChartAreas(0).AxisY.Title = "Scan Count"
             Chart1.ChartAreas(0).AxisX.Interval = 1
-            ' Initial check
+
+            StyleChannelAnalyzerComponents()
+            StyleSpecificColumns()
+
+
             Task.Run(Sub() UpdateButtonColors())
         Catch ex As Exception
             MessageBox.Show("Database setup failed: " & ex.StackTrace, "Error")
         End Try
     End Sub
 
+    Private Sub InitializeProgressIndicator()
+        progressPanel = New Panel()
+        progressPanel.Size = New Size(300, 80)
+        progressPanel.Visible = False
+        progressLabel = New Label()
+        progressLabel.Text = "Analyzing channels"
+        progressLabel.ForeColor = Color.Black
+        progressLabel.Location = New Point(60, 15)
+        progressLabel.Size = New Size(200, 20)
+        progressLabel.TextAlign = ContentAlignment.TopLeft
+        progressLabel.Left = 0
+        progressBar = New ProgressBar()
+        progressBar.Style = ProgressBarStyle.Marquee
+        progressBar.Location = New Point(20, 40)
+        progressBar.Size = New Size(260, 5)
+
+        progressPanel.Controls.Add(progressLabel)
+        progressPanel.Controls.Add(progressBar)
+
+        progressPanel.Location = New Point(Button1.Location.X, Button1.Location.Y + Button1.Height + 100)
+        Me.Controls.Add(Me.progressPanel)
+    End Sub
 
     Private Sub pingTimer_Tick(sender As Object, e As EventArgs) Handles pingTimer.Tick
         ' Run ping checks in background to avoid UI freezing
@@ -161,6 +212,44 @@ Public Class Form1
         End Try
     End Sub
 
+    Private Sub ClearChannelsData()
+        Try
+            Using connection As New SqlConnection(connectionString)
+                connection.Open()
+
+                Dim query As String = "
+                DELETE FROM LTE_CELLS;
+                DELETE FROM GSM_CELLS;
+                DELETE FROM WCDMA_CELLS;
+            "
+
+                Using cmd As New SqlCommand(query, connection)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            If DataGridView1.InvokeRequired Then
+                DataGridView1.Invoke(Sub() DataGridView1.Rows.Clear())
+            Else
+                DataGridView1.Rows.Clear()
+            End If
+
+            If DataGridView2.InvokeRequired Then
+                DataGridView2.Invoke(Sub() DataGridView2.Rows.Clear())
+            Else
+                DataGridView2.Rows.Clear()
+            End If
+
+            If DataGridView3.InvokeRequired Then
+                DataGridView3.Invoke(Sub() DataGridView3.Rows.Clear())
+            Else
+                DataGridView3.Rows.Clear()
+            End If
+        Catch ex As Exception
+            Console.WriteLine("Error clearing channel data: " & ex.Message)
+        End Try
+    End Sub
+
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         StartChannelAnalyzer()
     End Sub
@@ -171,22 +260,48 @@ Public Class Form1
         StartChannelAnalyzer()
     End Sub
 
-    Private Sub StartChannelAnalyzer()
+    Private Sub connectToAnalyzerBoard()
         Try
-            udpClientLteWcdma = New UdpClient()
-            udpClientGsm = New UdpClient()
+            Dim localEndpoint1 As New IPEndPoint(IPAddress.Any, 0)
+            Dim localEndpoint2 As New IPEndPoint(IPAddress.Any, 0)
 
-            Dim lteWcdmaEndpoint As New IPEndPoint(IPAddress.Parse("192.168.1.99"), 9001)
-            Dim gsmEndpoint As New IPEndPoint(IPAddress.Parse("192.168.1.100"), 9001)
+            udpClientLteWcdma = New UdpClient(localEndpoint1)
+            udpClientGsm = New UdpClient(localEndpoint2)
 
-            udpClientLteWcdma.Connect(lteWcdmaEndpoint)
             udpClientGsm.Connect(gsmEndpoint)
+            udpClientLteWcdma.Connect(lteWcdmaEndpoint)
 
+            Console.WriteLine("Connected to analyzer boards successfully")
+        Catch ex As Exception
+            Console.WriteLine("Error occurred while connecting to boards: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Sub StartChannelAnalyzer()
+        Button1.Enabled = False
+        analyzingGsm = True
+        analyzingLteWcdma = True
+        ShowProgressIndicator()
+        progressBar.Visible = True
+        Try
             Dim command As String = "StartSniffer"
             Dim commandBytes As Byte() = Encoding.ASCII.GetBytes(command)
 
-            udpClientLteWcdma.Send(commandBytes, commandBytes.Length)
-            udpClientGsm.Send(commandBytes, commandBytes.Length)
+            If udpClientLteWcdma IsNot Nothing Then
+                udpClientLteWcdma.Send(commandBytes, commandBytes.Length)
+            Else
+                progressLabel.Text = "Could not connect to lte/wcdma board"
+            End If
+
+            If udpClientGsm IsNot Nothing Then
+                udpClientGsm.Send(commandBytes, commandBytes.Length)
+            Else
+                progressLabel.Text = "Could not connect to gsm board"
+            End If
+
+            If udpClientLteWcdma Is Nothing AndAlso udpClientGsm Is Nothing Then
+                Throw New InvalidOperationException("Both LTE/WCDMA and GSM boards did not connect. Try again.")
+            End If
 
             isListening = True
             receivingThread = New Thread(AddressOf ReceiveData)
@@ -197,85 +312,152 @@ Public Class Form1
             PictureBox16.BackColor = Color.Green
             PictureBox17.BackColor = Color.Green
 
-            MessageBox.Show("Channel analyzer started successfully!")
         Catch ex As Exception
-            MessageBox.Show("Error starting channel analyzer: " & ex.Message)
+            progressBar.Visible = False
+            progressLabel.Text = "Error Connecting to all boards. try again"
+            Button1.Enabled = True
         End Try
     End Sub
 
-    Private Sub StopChannelAnalyzer()
+    Private Sub ShowProgressIndicator()
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() ShowProgressIndicator())
+        Else
+            progressPanel.Visible = True
+        End If
+    End Sub
+
+    Private Sub AddRefreshButton()
+        refreshBtn.Size = New Size(80, 25)
+        refreshBtn.Location = New Point(GroupBox31.Location.X + GroupBox31.Width - 60, GroupBox31.Location.Y - 2)
+
+        refreshIcon = New Bitmap(My.Resources.refreshBtn, New Size(15, 15))
+        refreshBtn.Image = refreshIcon
+        refreshBtn.ImageAlign = ContentAlignment.MiddleLeft
+        refreshBtn.TextImageRelation = TextImageRelation.ImageBeforeText
+        refreshBtn.Text = "Refresh"
+        refreshBtn.TextAlign = ContentAlignment.MiddleRight
+        AddHandler refreshBtn.Click, AddressOf RefreshManualBaseStation
+
+        Me.Controls.Add(refreshBtn)
+        refreshBtn.BringToFront()
+
+        refreshTimer.Interval = 50
+    End Sub
+
+
+    Private Sub refreshTimer_Tick(sender As Object, e As EventArgs) Handles refreshTimer.Tick
+        refreshAngle += 10
+        If refreshAngle >= 360 Then refreshAngle = 0
+
+        Dim rotated As New Bitmap(refreshIcon.Width, refreshIcon.Height)
+        Using g As Graphics = Graphics.FromImage(rotated)
+            g.TranslateTransform(refreshIcon.Width \ 2, refreshIcon.Height \ 2)
+            g.RotateTransform(refreshAngle)
+            g.TranslateTransform(-refreshIcon.Width \ 2, -refreshIcon.Height \ 2)
+            g.DrawImage(refreshIcon, New Point(0, 0))
+        End Using
+
+        refreshBtn.Image = rotated
+    End Sub
+
+    Private Async Sub RefreshManualBaseStation(sender As Object, e As EventArgs)
+        If isRefreshing Then Return
+        isRefreshing = True
+
+        refreshTimer.Start()
+
         Try
-            isListening = False
+            Await Task.Run(Sub()
+                               LoadBaseStationData()
+                           End Sub)
+        Catch ex As Exception
+            MessageBox.Show("Error refreshing: " & ex.Message)
+        Finally
+            refreshTimer.Stop()
+            refreshBtn.Image = refreshIcon
+            isRefreshing = False
+        End Try
+    End Sub
 
-            If receivingThread IsNot Nothing AndAlso receivingThread.IsAlive Then
-                receivingThread.Join(1000)
+
+    Private Sub CheckAnalysisStatus()
+        If Not analyzingGsm AndAlso Not analyzingLteWcdma Then
+            If Me.InvokeRequired Then
+                Me.Invoke(Sub() CheckAnalysisStatus())
+            Else
+                Button1.Enabled = True
+                HideProgressIndicator()
             End If
+        End If
+    End Sub
 
-            If udpClientLteWcdma IsNot Nothing Then
-                udpClientLteWcdma.Close()
-            End If
+    Private Sub HideProgressIndicator()
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() HideProgressIndicator())
+        Else
+            progressPanel.Visible = False
+        End If
+    End Sub
 
-            If udpClientGsm IsNot Nothing Then
-                udpClientGsm.Close()
-            End If
+    Private Sub StopChannelAnalyzer()
+        ShowProgressIndicator()
+        progressLabel.Text = "Stopping channel anaalyzer"
+        Try
+            Dim command As String = "RebootAndStartSniffer"
+            Dim commandBytes As Byte() = Encoding.ASCII.GetBytes(command)
 
-            PictureBox15.BackColor = Color.Red
-            PictureBox16.BackColor = Color.Red
-            PictureBox17.BackColor = Color.Red
+            udpClientLteWcdma.Send(commandBytes, commandBytes.Length)
+            udpClientGsm.Send(commandBytes, commandBytes.Length)
 
-            MessageBox.Show("Channel analyzer stopped!")
+            progressLabel.Text = "Channel analyzer rebooting"
         Catch ex As Exception
             MessageBox.Show("Error stopping channel analyzer: " & ex.Message)
         End Try
     End Sub
 
     Private Sub ReceiveData()
+        Dim remoteEP As New IPEndPoint(IPAddress.Any, 0)
+
         While isListening
             Try
-                ' Check if there's data available on LTE/WCDMA port
                 If udpClientLteWcdma.Available > 0 Then
-                    Dim remoteEP As IPEndPoint = Nothing
                     Dim receiveBytes As Byte() = udpClientLteWcdma.Receive(remoteEP)
-                    Dim response As String = Encoding.ASCII.GetString(receiveBytes)
-
+                    Dim response As String = Encoding.UTF8.GetString(receiveBytes)
+                    progressLabel.Text = response.Substring(0, 20)
                     ProcessLteWcdmaData(response)
+
                 End If
 
-                ' Check if there's data available on GSM port
+                udpClientGsm.Connect(gsmEndpoint)
                 If udpClientGsm.Available > 0 Then
-                    Dim remoteEP As IPEndPoint = Nothing
-                    Dim receiveBytes As Byte() = udpClientGsm.Receive(remoteEP)
-                    Dim response As String = Encoding.ASCII.GetString(receiveBytes)
-
+                    Dim remoteEP1 As New IPEndPoint(IPAddress.Any, 0)
+                    Dim receiveBytes As Byte() = udpClientGsm.Receive(remoteEP1)
+                    Dim response As String = Encoding.UTF8.GetString(receiveBytes)
+                    progressLabel.Text = response.Substring(0, 20)
                     ProcessGsmData(response)
+
                 End If
 
-                ' Small delay to prevent CPU overuse
-                Thread.Sleep(100)
             Catch ex As Exception
-                ' Handle exceptions (e.g., socket closed)
+                progressBar.Visible = False
+                progressLabel.Text = "Error occured, try again"
                 If isListening Then
-                    ' Only log if we're supposed to be listening
-                    ' You might want to add proper logging here
-                    Debug.WriteLine("Error receiving data: " & ex.Message)
+                    Console.WriteLine("Error receiving data: " & ex.Message)
                 End If
             End Try
         End While
     End Sub
 
     Private Sub ProcessLteWcdmaData(data As String)
-        ' Parse the received data and determine if it's LTE or WCDMA
-        ' This is a simplified example - you'll need to implement actual parsing logic
-        ' based on your device's response format
 
         Try
-            ' Split the data into lines for processing
             Dim lines As String() = data.Split(New String() {Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
 
             For Each line As String In lines
-                If line.Contains("LTE") Then
+                If line.ToLower().Contains("lte") Then
                     ProcessLteData(line)
-                ElseIf line.Contains("WCDMA") Or line.Contains("UMTS") Then
+                ElseIf line.ToLower().Contains("wcdma") Then
                     ProcessWcdmaData(line)
                 End If
             Next
@@ -284,62 +466,146 @@ Public Class Form1
         End Try
     End Sub
 
-    Private Sub ProcessGsmData(data As String)
+    Private Sub ProcessGsmData(line As String)
+        Console.WriteLine(line)
         Try
-            Dim lines As String() = data.Split(New String() {Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
+            Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
+            Dim lacMatch As Match = Regex.Match(line, "lac\[(\d+)\]")
+            Dim cidMatch As Match = Regex.Match(line, "cid\[(\d+)\]")
+            Dim fcnMatch As Match = Regex.Match(line, "fcn\[(\d+)\]")
+            Dim bsicMatch As Match = Regex.Match(line, "bsic\[(\d+)\]")
+            Dim rssiMatch As Match = Regex.Match(line, "rssi\[(-?\d+)\]")
+            Dim nbFreqMatch As Match = Regex.Match(line, "nbFreq\[(.*)\]")
 
-            For Each line As String In lines
-                If line.Contains("GSM") Then
-                    Dim parts As String() = line.Split(","c)
-
-                    If parts.Length >= 10 Then
-                        Dim providerName As String = parts(0).Trim()
-                        Dim plmn As String = parts(1).Trim()
-                        Dim mcc As Integer = Integer.Parse(parts(2).Trim())
-                        Dim mnc As Integer = Integer.Parse(parts(3).Trim())
-                        Dim band As String = parts(4).Trim()
-                        Dim arfcn As Integer = Integer.Parse(parts(5).Trim())
-                        Dim lac As Integer = Integer.Parse(parts(6).Trim())
-                        Dim nbCell As Integer = Integer.Parse(parts(7).Trim())
-                        Dim cellId As Long = Long.Parse(parts(8).Trim())
-                        Dim bsic As Byte = Byte.Parse(parts(9).Trim())
-
-                        InsertGsmData(providerName, plmn, mcc, mnc, band, arfcn, lac, nbCell, cellId, bsic)
-
-                        UpdateGsmDataGridView(providerName, plmn, mcc, mnc, band, arfcn, lac, nbCell, cellId, bsic)
-                    End If
+            If plmnMatch.Success AndAlso cidMatch.Success Then
+                Dim plmn As String = plmnMatch.Groups(1).Value
+                Dim mcc As Integer = 0
+                Dim mnc As Integer = 0
+                If plmn.Length >= 5 Then
+                    Integer.TryParse(plmn.Substring(0, 3), mcc)
+                    Integer.TryParse(plmn.Substring(3), mnc)
                 End If
-            Next
+
+                Dim lac As Integer = If(lacMatch.Success, Integer.Parse(lacMatch.Groups(1).Value), 0)
+                Dim cellId As Long = Long.Parse(cidMatch.Groups(1).Value)
+                Dim arfcn As Integer = If(fcnMatch.Success, Integer.Parse(fcnMatch.Groups(1).Value), 0)
+                Dim bsic As Integer = If(bsicMatch.Success, Integer.Parse(bsicMatch.Groups(1).Value), 0)
+                Dim rssi As Double = If(rssiMatch.Success, Double.Parse(rssiMatch.Groups(1).Value), 0)
+
+                Dim providerName As String = GetOperatorCodeByPLMN(plmn)
+                Dim band As String = GetBand(arfcn)
+
+                Dim nbFreq As String = If(nbFreqMatch.Success, nbFreqMatch.Groups(1).Value.Trim(), "")
+
+                InsertGsmData(providerName, plmn, mcc, mnc, band, arfcn, lac, nbFreq, cellId, bsic, rssi)
+                UpdateGsmDataGridView(providerName, plmn, mcc, mnc, band, arfcn, lac, nbFreq, cellId, bsic)
+            Else
+                Debug.WriteLine("GSM line skipped (no PLMN or CID): " & line)
+            End If
+
         Catch ex As Exception
-            Debug.WriteLine("Error processing GSM data: " & ex.Message)
+            Debug.WriteLine("Error processing GSM data: " & ex.ToString())
         End Try
     End Sub
 
     Private Sub ProcessLteData(line As String)
+        Console.WriteLine(line)
         Try
-            Dim parts As String() = line.Split(","c)
+            ' Regex matches
+            Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
+            Dim tacMatch As Match = Regex.Match(line, "tac\[(\d+)\]")
+            Dim cidMatch As Match = Regex.Match(line, "cid\[(\d+)\]")
+            Dim fcnMatch As Match = Regex.Match(line, "fcn\[(\d+)\]")
+            Dim pciMatch As Match = Regex.Match(line, "pci\[(\d+)\]")
+            Dim rsrpMatch As Match = Regex.Match(line, "rsrp\[(-?\d+)\]")
+            Dim priMatch As Match = Regex.Match(line, "pri\[(\d+)\]")
+            Dim nbFreqMatch As Match = Regex.Match(line, "nbFreq\[(.*)\]")
 
-            If parts.Length >= 12 Then
-                Dim providerName As String = parts(0).Trim()
-                Dim plmn As String = parts(1).Trim()
-                Dim mcc As Integer = Integer.Parse(parts(2).Trim())
-                Dim mnc As Integer = Integer.Parse(parts(3).Trim())
-                Dim band As String = parts(4).Trim()
-                Dim pci As Integer = Integer.Parse(parts(5).Trim())
-                Dim nbEarfcn As Integer = Integer.Parse(parts(6).Trim())
-                Dim nbsc As Integer = Integer.Parse(parts(7).Trim())
-                Dim lac As Integer = Integer.Parse(parts(8).Trim())
-                Dim cellId As Long = Long.Parse(parts(9).Trim())
-                Dim rsrp As Double = Double.Parse(parts(10).Trim())
+            If plmnMatch.Success AndAlso cidMatch.Success Then
+                ' Parse PLMN safely
+                Dim plmn As String = plmnMatch.Groups(1).Value
+                Dim mcc As Integer = 0
+                Dim mnc As Integer = 0
+                If plmn.Length >= 5 Then
+                    Integer.TryParse(plmn.Substring(0, 3), mcc)
+                    Integer.TryParse(plmn.Substring(3), mnc)
+                End If
 
-                InsertLteData(providerName, plmn, mcc, mnc, band, pci, nbEarfcn, nbsc, lac, cellId, rsrp)
+                ' Parse other numeric fields safely
+                Dim tac As Integer = If(tacMatch.Success, Integer.Parse(tacMatch.Groups(1).Value), 0)
+                Dim cellId As Long = Long.Parse(cidMatch.Groups(1).Value)
+                Dim earfcn As Integer = If(fcnMatch.Success, Integer.Parse(fcnMatch.Groups(1).Value), 0)
+                Dim pci As Integer = If(pciMatch.Success, Integer.Parse(pciMatch.Groups(1).Value), 0)
+                Dim rsrp As Double = If(rsrpMatch.Success, Double.Parse(rsrpMatch.Groups(1).Value), 0)
+                Dim pri As Integer = If(priMatch.Success, Integer.Parse(priMatch.Groups(1).Value), 0)
 
-                UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pci, nbEarfcn, nbsc, lac, cellId, rsrp)
+                Dim providerName As String = GetOperatorCodeByPLMN(plmn)
+                Dim band As String = GetBand(earfcn)
+
+                ' nbEarfcn as raw string
+                Dim raw As String = If(nbFreqMatch.Success, nbFreqMatch.Groups(1).Value.Trim(), "")
+                Dim nbEarfcn As String = raw.Replace(" measured[", "")
+                If Not nbEarfcn.StartsWith("[[") Then
+                    nbEarfcn = "[" & nbEarfcn
+                End If
+
+                Console.WriteLine("nbFreq: " & nbEarfcn)
+
+                ' Insert/update
+                InsertLteData(providerName, plmn, mcc, mnc, band, pri, earfcn, nbEarfcn, tac, cellId, rsrp)
+                UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pri, earfcn, nbEarfcn, tac, cellId, rsrp)
+            Else
+                Debug.WriteLine("LTE line skipped (no PLMN or CID): " & line)
             End If
+
         Catch ex As Exception
-            Debug.WriteLine("Error processing LTE data: " & ex.Message)
+            Debug.WriteLine("Error processing LTE data: " & ex.ToString())
         End Try
     End Sub
+
+    Public Function GetOperatorCodeByPLMN(plmn As String) As String
+        Dim operatorCode As String = Nothing
+        Dim query As String = "SELECT operator_code FROM operators WHERE plmn = @plmn"
+
+        Using connection As New SqlConnection(connectionString)
+            Using command As New SqlCommand(query, connection)
+                command.Parameters.AddWithValue("@plmn", plmn)
+
+                connection.Open()
+                Dim result As Object = command.ExecuteScalar()
+                If result IsNot Nothing Then
+                    operatorCode = result.ToString()
+                End If
+            End Using
+        End Using
+        Console.WriteLine("Operator code : " & operatorCode)
+        Console.WriteLine("plmn : " & plmn)
+        Return operatorCode
+    End Function
+
+    Public Function GetBand(ByVal earfcn As Integer) As String
+        Dim bands As (Name As String, NOffsDL As Integer, NMax As Integer)() = {
+        ("Band 1 (2100 MHz)", 0, 599),
+        ("Band 2 (1900 MHz)", 600, 1199),
+        ("Band 3 (1800 MHz)", 1200, 1949),
+        ("Band 4 (1700/2100 MHz)", 1950, 2399),
+        ("Band 5 (850 MHz)", 2400, 2649),
+        ("Band 7 (2600 MHz)", 2650, 3449),
+        ("Band 8 (900 MHz)", 3450, 3799),
+        ("Band 9 (1800 MHz)", 3800, 4149),
+        ("Band 40 (TDD 2300 MHz)", 38650, 39649),
+        ("Band 41 (TDD 2500 MHz)", 39650, 41589)
+    }
+
+        For Each b In bands
+            If earfcn >= b.NOffsDL AndAlso earfcn <= b.NMax Then
+                Return b.Name
+            End If
+        Next
+
+        Return "Unknown"
+    End Function
+
 
     Private Sub ProcessWcdmaData(line As String)
         Try
@@ -369,15 +635,16 @@ Public Class Form1
 
     Private Sub InsertGsmData(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
                              band As String, arfcn As Integer, lac As Integer, nbCell As Integer,
-                             cellId As Long, bsic As Byte)
+                             cellId As Long, bsic As Byte, rssi As Double)
         Using connection As New SqlConnection(connectionString)
             connection.Open()
-            Dim query As String = "INSERT INTO gsm_cells (ProviderName, plmn, mcc, mnc, band, arfcn, lac, nb_cell, cell_id, bsic) " &
-                                 "VALUES (@ProviderName, @plmn, @mcc, @mnc, @band, @arfcn, @lac, @nbCell, @cellId, @bsic)"
+            Dim query As String = "INSERT INTO gsm_cells (ProviderName, plmn, rat, mcc, mnc, band, arfcn, lac, nb_cell, cell_id, bsic) " &
+                                 "VALUES (@ProviderName, @plmn, @rat, @mcc, @mnc, @band, @arfcn, @lac, @nbCell, @cellId, @bsic)"
 
             Using command As New SqlCommand(query, connection)
                 command.Parameters.AddWithValue("@ProviderName", providerName)
                 command.Parameters.AddWithValue("@plmn", plmn)
+                command.Parameters.AddWithValue("@rat", "GSM")
                 command.Parameters.AddWithValue("@mcc", mcc)
                 command.Parameters.AddWithValue("@mnc", mnc)
                 command.Parameters.AddWithValue("@band", band)
@@ -386,6 +653,7 @@ Public Class Form1
                 command.Parameters.AddWithValue("@nbCell", nbCell)
                 command.Parameters.AddWithValue("@cellId", cellId)
                 command.Parameters.AddWithValue("@bsic", bsic)
+                command.Parameters.AddWithValue("rssi", rssi)
 
                 command.ExecuteNonQuery()
             End Using
@@ -393,12 +661,12 @@ Public Class Form1
     End Sub
 
     Private Sub InsertLteData(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
-                             band As String, pci As Integer, nbEarfcn As Integer, nbsc As Integer,
+                             band As String, pri As Integer, earfcn As Integer, nbEarfcn As String,
                              lac As Integer, cellId As Long, rsrp As Double)
         Using connection As New SqlConnection(connectionString)
             connection.Open()
-            Dim query As String = "INSERT INTO lte_cells (provider_name, plmn, mcc, mnc, band, pci, nb_earfcn, nbsc, lac, cell_id, rsrp) " &
-                                 "VALUES (@providerName, @plmn, @mcc, @mnc, @band, @pci, @nbEarfcn, @nbsc, @lac, @cellId, @rsrp)"
+            Dim query As String = "INSERT INTO lte_cells (provider_name, plmn, mcc, mnc, band, pri, earfcn, nb_earfcn, lac, cell_id, rsrp) " &
+                                 "VALUES (@providerName, @plmn, @mcc, @mnc, @band, @pri, @earfcn, @nbEarfcn, @lac, @cellId, @rsrp)"
 
             Using command As New SqlCommand(query, connection)
                 command.Parameters.AddWithValue("@providerName", providerName)
@@ -406,9 +674,9 @@ Public Class Form1
                 command.Parameters.AddWithValue("@mcc", mcc)
                 command.Parameters.AddWithValue("@mnc", mnc)
                 command.Parameters.AddWithValue("@band", band)
-                command.Parameters.AddWithValue("@pci", pci)
+                command.Parameters.AddWithValue("@pri", pri)
+                command.Parameters.AddWithValue("@earfcn", earfcn)
                 command.Parameters.AddWithValue("@nbEarfcn", nbEarfcn)
-                command.Parameters.AddWithValue("@nbsc", nbsc)
                 command.Parameters.AddWithValue("@lac", lac)
                 command.Parameters.AddWithValue("@cellId", cellId)
                 command.Parameters.AddWithValue("@rsrp", rsrp)
@@ -476,43 +744,88 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub UpdateLteDataGridView(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
-                                  band As String, pci As Integer, nbEarfcn As Integer, nbsc As Integer,
-                                  lac As Integer, cellId As Long, rsrp As Double)
+    Public Sub RefreshBaseStationChannel(channelNumber As Integer)
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() RefreshBaseStationChannel(channelNumber))
+            Return
+        End If
+
+        Console.WriteLine("Invoking base station channel " & channelNumber)
+
+        ' Reload the specific channel data
+        Select Case channelNumber
+            Case 1
+                LoadBaseStationChannel(1, TextBox4, TextBox5, TextBox6, TextBox7, TextBox9, TextBox8, TextBox40, ComboBox12)
+            Case 2
+                LoadBaseStationChannel(2, TextBox15, TextBox14, TextBox12, TextBox13, TextBox10, TextBox11, TextBox41, ComboBox13)
+            Case 3
+                LoadBaseStationChannel(3, TextBox21, TextBox20, TextBox18, TextBox19, TextBox16, TextBox17, TextBox42, ComboBox14)
+            Case 4
+                LoadBaseStationChannel(4, TextBox27, TextBox26, TextBox24, TextBox25, TextBox22, TextBox23, TextBox43, ComboBox15)
+            Case 5
+                LoadBaseStationChannel(5, TextBox33, TextBox32, TextBox30, TextBox31, TextBox28, TextBox29, TextBox44, ComboBox16)
+            Case 6
+                LoadBaseStationChannel(6, TextBox39, TextBox38, TextBox36, TextBox37, TextBox34, TextBox35, TextBox45, ComboBox17)
+            Case 7
+                LoadBaseStationChannel(7, TextBox52, TextBox51, TextBox49, TextBox50, TextBox47, TextBox48, TextBox46, ComboBox18)
+            Case 8
+                LoadBaseStationChannel(8, TextBox59, TextBox58, TextBox56, TextBox57, TextBox54, TextBox55, TextBox53, ComboBox19)
+            Case 9
+                LoadChannels9And10()
+            Case 10
+                LoadChannels9And10()
+            Case 11
+                LoadBaseStationChannel(11, TextBox65, TextBox66, TextBox63, TextBox64, TextBox61, TextBox62, TextBox60, ComboBox21)
+            Case 12
+                LoadBaseStationChannel(12, TextBox72, TextBox73, TextBox70, TextBox71, TextBox68, TextBox69, TextBox67, ComboBox22)
+            Case 13
+                LoadBaseStationChannel(13, TextBox79, TextBox80, TextBox77, TextBox78, TextBox75, TextBox76, TextBox74, ComboBox23)
+            Case 14
+                LoadBaseStationChannel(14, TextBox86, TextBox87, TextBox84, TextBox85, TextBox82, TextBox83, TextBox81, ComboBox24)
+        End Select
+    End Sub
+
+    Private Sub UpdateLteDataGridView(providerName As String, plmn As String, mcc As Integer?, mnc As Integer?,
+                                  band As String, pci As Integer?, earfcn As String, nbEarfcn As String,
+                                  lac As Integer?, cellId As Long?, rsrp As Double?)
 
         If DataGridView3.InvokeRequired Then
-            DataGridView3.Invoke(Sub() UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pci, nbEarfcn, nbsc, lac, cellId, rsrp))
-        Else
-            Dim rowIndex As Integer = -1
-
-            ' Search existing row by CellId
-            For i As Integer = 0 To DataGridView3.Rows.Count - 1
-                If DataGridView3.Rows(i).Cells("Column10").Value IsNot Nothing AndAlso
-               DataGridView3.Rows(i).Cells("Column10").Value.ToString() = cellId.ToString() Then
-                    rowIndex = i
-                    Exit For
-                End If
-            Next
-
-            ' Add new row if not found
-            If rowIndex = -1 Then
-                rowIndex = DataGridView3.Rows.Add()
-            End If
-
-            ' Update LTE row values
-            DataGridView3.Rows(rowIndex).Cells("Column5").Value = providerName
-            DataGridView3.Rows(rowIndex).Cells("Column6").Value = plmn
-            DataGridView3.Rows(rowIndex).Cells("Column14").Value = mcc
-            DataGridView3.Rows(rowIndex).Cells("Column15").Value = mnc
-            DataGridView3.Rows(rowIndex).Cells("Column7").Value = band
-            DataGridView3.Rows(rowIndex).Cells("Column8").Value = pci
-            DataGridView3.Rows(rowIndex).Cells("Column9").Value = nbEarfcn
-            DataGridView3.Rows(rowIndex).Cells("Column11").Value = nbsc
-            DataGridView3.Rows(rowIndex).Cells("Column12").Value = lac
-            DataGridView3.Rows(rowIndex).Cells("Column10").Value = cellId
-            DataGridView3.Rows(rowIndex).Cells("Column13").Value = rsrp
+            DataGridView3.Invoke(Sub() UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pci, earfcn, nbEarfcn, lac, cellId, rsrp))
+            Return
         End If
+
+        Dim dt As DataTable = TryCast(DataGridView3.DataSource, DataTable)
+        If dt Is Nothing Then
+            MessageBox.Show("DataGridView is not bound to a DataTable!")
+            Return
+        End If
+
+        ' Ensure string columns
+        For Each colName In {"nb_earfcn", "rat", "band", "provider_name", "plmn", "earfcn"}
+            If dt.Columns.Contains(colName) AndAlso dt.Columns(colName).DataType IsNot GetType(String) Then
+                dt.Columns(colName).DataType = GetType(String)
+            End If
+        Next
+
+        Dim row As DataRow = dt.NewRow()
+
+        ' Assign safely
+        row("provider_name") = If(String.IsNullOrEmpty(providerName), String.Empty, providerName)
+        row("plmn") = If(String.IsNullOrEmpty(plmn), String.Empty, plmn)
+        row("mcc") = If(mcc.HasValue, mcc.Value, DBNull.Value)
+        row("mnc") = If(mnc.HasValue, mnc.Value, DBNull.Value)
+        row("rat") = "LTE"
+        row("band") = If(String.IsNullOrEmpty(band), String.Empty, band)
+        row("earfcn") = If(String.IsNullOrEmpty(earfcn), String.Empty, earfcn)
+        row("nb_earfcn") = If(String.IsNullOrEmpty(nbEarfcn), String.Empty, nbEarfcn)
+        row("lac") = If(lac.HasValue, lac.Value, DBNull.Value)
+        row("rsrp") = If(rsrp.HasValue, rsrp.Value, DBNull.Value)
+
+        dt.Rows.Add(row)
     End Sub
+
+
+
 
     Private Sub UpdateWcdmaDataGridView(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
                                     band As String, psc As Integer, earfcn As Integer, nbsc As Integer,
@@ -628,7 +941,7 @@ Public Class Form1
     End Sub
 
 
-    Private Sub LoadBaseStationData1()
+    Public Sub LoadBaseStationData1()
         Try
             ' Load data for all base station channels
             LoadBaseStationChannel(1, TextBox4, TextBox5, TextBox6, TextBox7, TextBox9, TextBox8, TextBox40, ComboBox12)
@@ -664,6 +977,7 @@ Public Class Form1
     Private Sub LoadBaseStationChannel(channelNumber As Integer, txtMCC As TextBox, txtMNC As TextBox,
                                       txtCID As TextBox, txtLAC As TextBox, txtCount As TextBox,
                                       txtEarfcn As TextBox, txtTechnology As TextBox, cmbBand As ComboBox)
+        Console.WriteLine("Loading base station channel")
         Using connection As New SqlConnection(connectionString)
             connection.Open()
 
@@ -709,11 +1023,10 @@ Public Class Form1
         End Using
     End Sub
 
-    Private Sub LoadChannels9And10()
+    Public Sub LoadChannels9And10()
         Using connection As New SqlConnection(connectionString)
             connection.Open()
 
-            ' Get data for channel 9
             Dim query9 As String = "SELECT earfcn FROM base_stations WHERE channel_number = 9"
             Using command9 As New SqlCommand(query9, connection)
                 Dim earfcn9 As Object = command9.ExecuteScalar()
@@ -724,7 +1037,6 @@ Public Class Form1
                 End If
             End Using
 
-            ' Get data for channel 10
             Dim query10 As String = "SELECT earfcn FROM base_stations WHERE channel_number = 10"
             Using command10 As New SqlCommand(query10, connection)
                 Dim earfcn10 As Object = command10.ExecuteScalar()
@@ -735,7 +1047,6 @@ Public Class Form1
                 End If
             End Using
 
-            ' Load other common data for channel 9 (using channel 9 as reference)
             LoadBaseStationChannel(9, TextBox94, TextBox93, TextBox91, TextBox92, TextBox89, Nothing, TextBox88, ComboBox20)
         End Using
     End Sub
@@ -927,26 +1238,28 @@ Public Class Form1
             Dim button As Button = editModeButtons(channel)
             Dim hasChanges As Boolean = buttonStates(channel)
 
-            ' Enable button only if valid AND has changes
             button.Enabled = isValid AndAlso hasChanges
 
             Console.WriteLine(isValid AndAlso hasChanges)
 
-            ' Update button text based on state
             If hasChanges Then
                 If channel = 9 Then
                     button.Text = $"Save changes to CH9 and CH10"
+                    button.ForeColor = Color.White
                 Else
                     button.Text = $"Save changes to CH{channel}"
                 End If
-                button.BackColor = Color.LightGreen ' Visual indicator
+                button.BackColor = Color.LightGreen
+                button.Font = New Font("Arial", 7, FontStyle.Regular)
             Else
                 If channel = 9 Then
                     button.Text = $"Stored to CH9 and CH10"
                 Else
                     button.Text = $"Stored to CH{channel}"
                 End If
-                button.BackColor = SystemColors.Control ' Default color
+                button.ForeColor = Color.Black
+                button.BackColor = Color.LightGray
+                button.Font = New Font("Arial", 8, FontStyle.Regular)
             End If
         End If
     End Sub
@@ -1220,7 +1533,7 @@ Public Class Form1
     End Sub
 
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-
+        Form6.Show()
     End Sub
 
     Private Sub Chart1_Click(sender As Object, e As EventArgs) Handles Chart1.Click
@@ -1248,11 +1561,11 @@ Public Class Form1
     End Sub
 
     Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
-
+        Form5.Show()
     End Sub
 
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
-
+        Form7.Show()
     End Sub
 
     Private Sub Button70_Click(sender As Object, e As EventArgs) Handles Button70.Click
@@ -1497,7 +1810,6 @@ Public Class Form1
         DataGridView1.DataSource = dataTable
 
         ' Map the columns if needed (optional, since DataPropertyName should handle it)
-        DataGridView1.Columns("ColumnIv").DataPropertyName = "gsm_id"
         DataGridView1.Columns("Column5").DataPropertyName = "ProviderName"
         DataGridView1.Columns("Column6").DataPropertyName = "plmn"
         DataGridView1.Columns("Column14").DataPropertyName = "mcc"
@@ -1517,7 +1829,6 @@ Public Class Form1
         DataGridView2.DataSource = dataTable
 
         ' Map the columns
-        DataGridView2.Columns("ColumnIv2").DataPropertyName = "wcdma_id"
         DataGridView2.Columns("Column16").DataPropertyName = "provider_name"
         DataGridView2.Columns("Column17").DataPropertyName = "plmn"
         DataGridView2.Columns("Column18").DataPropertyName = "mcc"
@@ -1538,17 +1849,15 @@ Public Class Form1
         DataGridView3.DataSource = dataTable
 
         ' Map the columns
-        DataGridView3.Columns("ColumnIv3").DataPropertyName = "lte_id"
         DataGridView3.Columns("Column28").DataPropertyName = "provider_name"
         DataGridView3.Columns("Column29").DataPropertyName = "plmn"
         DataGridView3.Columns("Column30").DataPropertyName = "mcc"
         DataGridView3.Columns("Column31").DataPropertyName = "mnc"
         DataGridView3.Columns("Column32").DataPropertyName = "band"
-        DataGridView3.Columns("Column37").DataPropertyName = "pci"
         DataGridView3.Columns("Column38").DataPropertyName = "nb_earfcn"
         DataGridView3.Columns("Column34").DataPropertyName = "rat"
         DataGridView3.Columns("Column35").DataPropertyName = "lac"
-        DataGridView3.Columns("Column33").DataPropertyName = "cell_id" ' Note: This might need adjustment
+        DataGridView3.Columns("Column33").DataPropertyName = "earfcn"
         DataGridView3.Columns("Column36").DataPropertyName = "rsrp"
     End Sub
 
@@ -2729,6 +3038,270 @@ Public Class Form1
             If textBox.Text.Length < 2 OrElse textBox.Text.Length > 3 Then
                 MessageBox.Show("MNC must be 2 or 3 digits", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 e.Cancel = True
+            End If
+        End If
+    End Sub
+
+    Private Sub StyleChannelAnalyzerComponents()
+        StyleDataGridView(DataGridView1)
+        StyleDataGridView(DataGridView2)
+        StyleDataGridView(DataGridView3)
+        StyleDataGridView(DataGridView4)
+        StyleDataGridView(DataGridView5)
+        StyleDataGridView(DataGridView6)
+        StyleDataGridView(DataGridView7)
+        StyleDataGridView(DataGridView8)
+        StyleDataGridView(DataGridView9)
+        StyleDataGridView(DataGridView10)
+
+        StyleGroupBox(GroupBox1)
+        StyleGroupBox(GroupBox28)
+        StyleGroupBox(GroupBox29)
+        StyleGroupBox(GroupBox30)
+        StyleGroupBox(GroupBox31)
+
+
+        StyleCheckedListBox(CheckedListBox1)
+
+        StyleAnalyzerLabels()
+
+        StyleButtonColors()
+
+        StyleManualBaseStation(GroupBox31)
+    End Sub
+
+    Private Sub StyleManualBaseStation(groupBox As GroupBox)
+        groupBox.BackColor = Color.Gray
+        groupBox.ForeColor = Color.White
+        groupBox.Padding = New Padding(20)
+        groupBox.Font = New Font("Segoe UI", 9.0!, FontStyle.Bold)
+
+        ' Style all group boxes within the manual base station
+        For Each control As Control In groupBox.Controls
+            If TypeOf control Is GroupBox Then
+                Dim subGroup As GroupBox = CType(control, GroupBox)
+                subGroup.BackColor = Color.LightSteelBlue
+                subGroup.ForeColor = Color.DarkBlue
+            End If
+        Next
+    End Sub
+
+    Private Sub StyleButtonColors()
+        For Each btn As Button In {Button3, Button4, Button5}
+            btn.BackColor = Color.Gray
+            btn.ForeColor = Color.White
+            btn.FlatStyle = FlatStyle.Flat
+            btn.FlatAppearance.BorderSize = 0
+
+            AddHandler btn.MouseEnter, AddressOf Button_Hover
+            AddHandler btn.MouseLeave, AddressOf Button_Leave
+        Next
+    End Sub
+
+    Private Sub Button_Hover(sender As Object, e As EventArgs)
+        Dim btn As Button = DirectCast(sender, Button)
+        btn.BackColor = Color.LightGray
+        btn.ForeColor = Color.Black
+    End Sub
+
+    Private Sub Button_Leave(sender As Object, e As EventArgs)
+        Dim btn As Button = DirectCast(sender, Button)
+        btn.BackColor = Color.Gray
+        btn.ForeColor = Color.White
+    End Sub
+
+
+    Private Sub StyleDataGridView(dgv As DataGridView)
+        If dgv Is Nothing Then Return
+
+        With dgv
+            .BackgroundColor = Color.Gray
+            .BorderStyle = BorderStyle.None
+            .EnableHeadersVisualStyles = False
+            .GridColor = Color.FromArgb(200, 200, 200)
+
+            .ColumnHeadersDefaultCellStyle.BackColor = Color.Maroon
+            .ColumnHeadersDefaultCellStyle.ForeColor = Color.White
+            .ColumnHeadersDefaultCellStyle.Font = New Font("Segoe UI", 9.0!, FontStyle.Bold)
+            .ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+            .ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single
+            .ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing
+            .ColumnHeadersHeight = 30
+            .ScrollBars = ScrollBars.Both
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
+            .RowTemplate.Height = 25
+
+            Dim widths As Integer() = {200, 200, 200, 200, 200, 200, 200, 200, 200, 200}
+            For i As Integer = 0 To widths.Length - 1
+                If i < .Columns.Count Then
+                    .Columns(i).Width = widths(i)
+                End If
+            Next
+
+            .RowHeadersDefaultCellStyle.BackColor = Color.Green
+            .RowHeadersDefaultCellStyle.ForeColor = Color.Black
+            .RowHeadersDefaultCellStyle.Font = New Font("Segoe UI", 8.0!, FontStyle.Bold)
+            .RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing
+
+            .DefaultCellStyle.BackColor = Color.FromArgb(248, 248, 248)
+            .DefaultCellStyle.ForeColor = Color.FromArgb(51, 51, 51)
+            .DefaultCellStyle.Font = New Font("Segoe UI", 8.5!)
+            .DefaultCellStyle.SelectionBackColor = Color.FromArgb(120, 180, 220)
+            .DefaultCellStyle.SelectionForeColor = Color.White
+            .DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
+            .DefaultCellStyle.Padding = New Padding(3)
+
+            .AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(230, 230, 240)
+            .AlternatingRowsDefaultCellStyle.ForeColor = Color.FromArgb(51, 51, 51)
+
+            .SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            .MultiSelect = False
+
+            .AllowUserToResizeRows = False
+            .AllowUserToAddRows = False
+            .AllowUserToDeleteRows = False
+            .ReadOnly = True
+        End With
+    End Sub
+
+    Private Sub StyleGroupBox(gb As GroupBox)
+        If gb Is Nothing Then Return
+
+        With gb
+            .ForeColor = Color.DarkGreen
+            .Font = New Font("Segoe UI", 9.0!, FontStyle.Bold)
+            .BackColor = Color.Transparent
+        End With
+    End Sub
+
+    Private Sub StyleButton(btn As Button)
+        If btn Is Nothing Then Return
+
+        With btn
+            .FlatStyle = FlatStyle.Flat
+            .FlatAppearance.BorderSize = 0
+            .BackColor = Color.Black
+            .ForeColor = Color.White
+            .Font = New Font("Segoe UI", 9.0!)
+            .Cursor = Cursors.Hand
+            .Padding = New Padding(5)
+
+            .FlatAppearance.MouseOverBackColor = Color.FromArgb(71, 71, 96)
+            .FlatAppearance.MouseDownBackColor = Color.FromArgb(41, 41, 61)
+        End With
+    End Sub
+
+    Private Sub StyleCheckedListBox(clb As CheckedListBox)
+        If clb Is Nothing Then Return
+
+        With clb
+            .BackColor = Color.FromArgb(240, 240, 240)
+            .ForeColor = Color.FromArgb(51, 51, 51)
+            .BorderStyle = BorderStyle.FixedSingle
+            .Font = New Font("Segoe UI", 8.5!)
+        End With
+    End Sub
+
+    Private Sub StyleAnalyzerLabels()
+        Dim analyzerLabels As New List(Of Control)
+
+        For Each ctrl As Control In GroupBox1.Controls
+            If TypeOf ctrl Is Label Then analyzerLabels.Add(ctrl)
+        Next
+
+        For Each ctrl As Control In GroupBox28.Controls
+            If TypeOf ctrl Is Label Then analyzerLabels.Add(ctrl)
+        Next
+
+        For Each ctrl As Control In GroupBox29.Controls
+            If TypeOf ctrl Is Label Then analyzerLabels.Add(ctrl)
+        Next
+
+        For Each ctrl As Control In GroupBox30.Controls
+            If TypeOf ctrl Is Label Then analyzerLabels.Add(ctrl)
+        Next
+
+        For Each lbl As Label In analyzerLabels
+            lbl.ForeColor = Color.Gray
+            lbl.Font = New Font("Segoe UI", 8.5!, FontStyle.Regular)
+            lbl.BackColor = Color.Transparent
+        Next
+    End Sub
+
+    Private Sub ApplyGradientBackground(control As Control, color1 As Color, color2 As Color)
+        AddHandler control.Paint, Sub(sender As Object, e As PaintEventArgs)
+                                      Dim rect As New Rectangle(0, 0, control.Width, control.Height)
+                                      Using brush As New LinearGradientBrush(rect, color1, color2, LinearGradientMode.Vertical)
+                                          e.Graphics.FillRectangle(brush, rect)
+                                      End Using
+                                  End Sub
+        control.Invalidate()
+    End Sub
+
+    Private Sub StyleSpecificColumns()
+        StyleColumn(DataGridView1, "Provider Name", Color.FromArgb(220, 240, 240))
+        StyleColumn(DataGridView1, "PLMN", Color.FromArgb(240, 240, 220))
+        StyleColumn(DataGridView1, "MCC", Color.FromArgb(240, 220, 220))
+        StyleColumn(DataGridView1, "MNC", Color.FromArgb(220, 220, 240))
+
+        StyleColumn(DataGridView2, "Provider Name", Color.FromArgb(220, 240, 240))
+        StyleColumn(DataGridView2, "BAND", Color.FromArgb(240, 240, 220))
+        StyleColumn(DataGridView2, "PSC", Color.FromArgb(220, 240, 220))
+
+        StyleColumn(DataGridView3, "Provider Name", Color.FromArgb(220, 240, 240))
+        StyleColumn(DataGridView3, "EARFCN", Color.FromArgb(240, 240, 220))
+        StyleColumn(DataGridView3, "PCI", Color.FromArgb(220, 240, 220))
+        StyleColumn(DataGridView3, "RSRP", Color.FromArgb(240, 220, 220))
+    End Sub
+
+    Private Sub StyleColumn(dgv As DataGridView, columnName As String, backColor As Color)
+        If dgv.Columns.Contains(columnName) Then
+            dgv.Columns(columnName).DefaultCellStyle.BackColor = backColor
+            dgv.Columns(columnName).DefaultCellStyle.SelectionBackColor = Color.FromArgb(
+            Math.Min(backColor.R + 20, 255),
+            Math.Min(backColor.G + 20, 255),
+            Math.Min(backColor.B + 20, 255))
+        End If
+    End Sub
+
+    Private Sub CheckedListBox1_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles CheckedListBox1.ItemCheck
+        ' Apply filter when items are checked/unchecked
+        ApplyFilter()
+    End Sub
+
+    Private Sub ApplyFilter()
+        Dim selectedItems As New List(Of String)()
+        For i As Integer = 0 To CheckedListBox1.Items.Count - 1
+            If CheckedListBox1.GetItemChecked(i) Then
+                selectedItems.Add(CheckedListBox1.Items(i).ToString())
+            End If
+        Next
+
+        If selectedItems.Contains("All") Then
+            LoadDataToGridViews()
+        Else
+            FilterDataGridView(DataGridView1, selectedItems)
+            FilterDataGridView(DataGridView2, selectedItems)
+            FilterDataGridView(DataGridView3, selectedItems)
+        End If
+    End Sub
+
+    Private Sub FilterDataGridView(dgv As DataGridView, filters As List(Of String))
+        If dgv.DataSource IsNot Nothing AndAlso TypeOf dgv.DataSource Is DataTable Then
+            Dim dt As DataTable = CType(dgv.DataSource, DataTable)
+            Dim filterExpression As String = ""
+
+            For Each filter As String In filters
+                If Not String.IsNullOrEmpty(filterExpression) Then
+                    filterExpression += " OR "
+                End If
+                filterExpression += $"provider_name LIKE '%{filter}%'"
+            Next
+
+            If Not String.IsNullOrEmpty(filterExpression) Then
+                dt.DefaultView.RowFilter = filterExpression
+            Else
+                dt.DefaultView.RowFilter = ""
             End If
         End If
     End Sub

@@ -8,7 +8,7 @@ Public Class DatabaseInitializer
     Private ReadOnly targetDbName As String
 
     Public Sub New(server As String, databaseName As String)
-        masterConnection = $"Server={server};Database=master;Trusted_Connection=True;"
+        masterConnection = "Server=(localdb)\MSSQLLocalDB;Integrated Security=true;"
         targetDbName = databaseName
     End Sub
 
@@ -17,19 +17,68 @@ Public Class DatabaseInitializer
             Await conn.OpenAsync()
 
             Dim createDbSql As String = $"
-                IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = '{targetDbName}')
-                BEGIN
-                    CREATE DATABASE [{targetDbName}];
-                END"
+            IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = '{targetDbName}')
+            BEGIN
+                CREATE DATABASE [{targetDbName}];
+            END"
 
             Using cmd As New SqlCommand(createDbSql, conn)
                 Await cmd.ExecuteNonQueryAsync()
             End Using
+
+            Dim checkSql As String = $"SELECT COUNT(*) FROM sys.databases WHERE name = '{targetDbName}'"
+            Using checkCmd As New SqlCommand(checkSql, conn)
+                Dim result As Integer = Convert.ToInt32(Await checkCmd.ExecuteScalarAsync())
+                If result = 0 Then
+                    Throw New Exception($"Failed to create database '{targetDbName}'. Check permissions or SQL Server logs.")
+                End If
+            End Using
         End Using
     End Function
 
+    Public Async Function SeedOperatorsAsync() As Task
+        Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"
+        Dim sb As New StringBuilder()
+        sb.AppendLine("IF NOT EXISTS (SELECT 1 FROM operators)")
+        sb.AppendLine("BEGIN")
+        sb.AppendLine("INSERT INTO operators (operator_name, operator_code, plmn, mcc, mnc, logo_url, description)")
+        sb.AppendLine("VALUES")
+        sb.AppendLine("('Telkomsel', 'TELKOMSEL', '51010', 510, 10, '', 'Telkomsel main PLMN'),")
+        sb.AppendLine("('Telkomsel', 'TELKOMSEL', '51011', 510, 11, '', 'Telkomsel secondary PLMN'),")
+        sb.AppendLine("('Telkomsel', 'TELKOMSEL', '51089', 510, 89, '', 'Telkomsel additional PLMN'),")
+        sb.AppendLine("('Telkomsel (Test)', 'TELKOMSE', '51000_TSEL', 510, 0, '', 'Telkomsel test / reserved PLMN'),")
+        sb.AppendLine("('Indosat Ooredoo Hutchison', 'INDOSAT', '51001', 510, 1, '', 'Indosat GSM/4G/5G network'),")
+        sb.AppendLine("('Indosat Ooredoo Hutchison', 'INDOSAT', '51021', 510, 21, '', 'Indosat secondary code'),")
+        sb.AppendLine("('Indosat (Test)', 'INDOSAT', '51000', 510, 0, '', 'Reserved / Test PLMN'),")
+        sb.AppendLine("('Tri Indonesia', 'TRI', 'THREE', 510, 89, '', 'Tri Indonesia (now merged with Indosat)'),")
+        sb.AppendLine("('XL Axiata', 'XL COMIDO', '51007', 510, 7, '', 'XL Axiata GSM/4G/5G network'),")
+        sb.AppendLine("('XL Axiata (Test)', 'XL COMIDO', '51000_XL', 510, 0, '', 'XL reserved / test PLMN'),")
+        sb.AppendLine("('Smartfren', 'SMARTFREN', '51009', 510, 9, '', 'Smartfren LTE/CDMA network'),")
+        sb.AppendLine("('Smartfren (Test)', 'SMARTFREN', '51000_SF', 510, 0, '', 'Smartfren test / reserved PLMN');")
+        sb.AppendLine("END")
+
+
+        Try
+            Using conn As New SqlConnection(targetDbConnection)
+                Await conn.OpenAsync()
+                Using cmd As New SqlCommand(sb.ToString(), conn)
+                    cmd.CommandTimeout = 0
+                    Dim rowsAffected As Integer = Await cmd.ExecuteNonQueryAsync()
+                    Console.WriteLine("SeedOperatorsAsync executed successfully. Rows affected: " & rowsAffected)
+                End Using
+            End Using
+        Catch ex As Exception
+            Console.WriteLine("Error in SeedOperatorsAsync: " & ex.Message)
+            If ex.InnerException IsNot Nothing Then
+                Console.WriteLine("Inner Exception: " & ex.InnerException.Message)
+            End If
+        End Try
+    End Function
+
+
+
     Public Async Function ApplySchemaAsync() As Task
-        Dim targetDbConnection As String = $"Server=localhost;Database={targetDbName};Trusted_Connection=True;"
+        Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"
 
         ' Build the full SQL script as a string
         Dim sb As New StringBuilder()
@@ -68,7 +117,7 @@ Public Class DatabaseInitializer
         sb.AppendLine("CREATE TABLE operators (")
         sb.AppendLine("    operator_id INT PRIMARY KEY IDENTITY(1,1),")
         sb.AppendLine("    operator_name NVARCHAR(150) NOT NULL,")
-        sb.AppendLine("    operator_code NVARCHAR(50) UNIQUE NOT NULL,")
+        sb.AppendLine("    operator_code NVARCHAR(50) NOT NULL,")
         sb.AppendLine("    plmn NVARCHAR(10),")
         sb.AppendLine("    mcc INT,")
         sb.AppendLine("    mnc INT,")
@@ -103,14 +152,15 @@ Public Class DatabaseInitializer
         sb.AppendLine("    ProviderName NVARCHAR(100),")
         sb.AppendLine("    plmn NVARCHAR(10),")
         sb.AppendLine("    rat NVARCHAR(10) DEFAULT 'GSM',")
-        sb.AppendLine("    band NVARCHAR(20),")
+        sb.AppendLine("    band NVARCHAR(50),")
         sb.AppendLine("    mcc INT,")
         sb.AppendLine("    mnc INT,")
         sb.AppendLine("    arfcn INT,")
         sb.AppendLine("    lac INT,")
-        sb.AppendLine("    nb_cell INT,")
+        sb.AppendLine("    nb_cell NVARCHAR(200),")
         sb.AppendLine("    cell_id BIGINT NOT NULL,")
         sb.AppendLine("    bsic TINYINT,")
+        sb.AppendLine("    rssi FLOAT,")
         sb.AppendLine("    Timestamp DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()")
         sb.AppendLine(");")
         sb.AppendLine("END")
@@ -125,10 +175,10 @@ Public Class DatabaseInitializer
         sb.AppendLine("    plmn NVARCHAR(20),")
         sb.AppendLine("    mcc INT,")
         sb.AppendLine("    mnc INT,")
-        sb.AppendLine("    band NVARCHAR(20),")
-        sb.AppendLine("    pci INT,")
-        sb.AppendLine("    nb_earfcn INT,")
-        sb.AppendLine("    nbsc INT,")
+        sb.AppendLine("    band NVARCHAR(50),")
+        sb.AppendLine("    pri INT,")
+        sb.AppendLine("    earfcn INT,")
+        sb.AppendLine("    nb_earfcn NVARCHAR(100),")
         sb.AppendLine("    rat NVARCHAR(10) DEFAULT 'LTE',")
         sb.AppendLine("    lac INT,")
         sb.AppendLine("    cell_id BIGINT NOT NULL,")
@@ -147,7 +197,7 @@ Public Class DatabaseInitializer
         sb.AppendLine("    plmn NVARCHAR(20),")
         sb.AppendLine("    mcc INT,")
         sb.AppendLine("    mnc INT,")
-        sb.AppendLine("    band NVARCHAR(20),")
+        sb.AppendLine("    band NVARCHAR(50),")
         sb.AppendLine("    psc INT,")
         sb.AppendLine("    earfcn INT,")
         sb.AppendLine("    nbsc INT,")

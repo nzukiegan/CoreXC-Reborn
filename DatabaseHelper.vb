@@ -6,7 +6,7 @@ Imports Microsoft.SqlServer
 
 ' Database helper class
 Public Class DatabaseHelper
-    Private ReadOnly connectionString As String = $"Server=localhost;Database=CoreXCDb;Trusted_Connection=True;"
+    Private ReadOnly connectionString As String = $"Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Integrated Security=true;"
 
     Public Function SaveBaseStation(baseStation As BaseStation) As Boolean
         Try
@@ -127,7 +127,7 @@ Public Class DatabaseHelper
 
         Using connection As New SqlConnection(connectionString)
             connection.Open()
-            Dim query As String = "SELECT lte_id, provider_name, plmn, mcc, mnc, band, pci, nb_earfcn, rat, lac, cell_id, rsrp FROM lte_cells ORDER BY Timestamp DESC"
+            Dim query As String = "SELECT lte_id, provider_name, plmn, mcc, mnc, band, nb_earfcn, rat, lac, earfcn, rsrp FROM lte_cells ORDER BY Timestamp DESC"
 
             Using command As New SqlCommand(query, connection)
                 Using adapter As New SqlDataAdapter(command)

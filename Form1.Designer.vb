@@ -772,6 +772,7 @@ Partial Class Form1
         Me.ChannelAnalyzer.Controls.Add(Me.TabPage4)
         Me.ChannelAnalyzer.Controls.Add(Me.TabPage5)
         Me.ChannelAnalyzer.Controls.Add(Me.TabPage6)
+
         Me.ChannelAnalyzer.Location = New System.Drawing.Point(8, 11)
         Me.ChannelAnalyzer.Margin = New System.Windows.Forms.Padding(2)
         Me.ChannelAnalyzer.Name = "ChannelAnalyzer"
@@ -1074,6 +1075,7 @@ Partial Class Form1
         Me.Button49.Name = "Button49"
         Me.Button49.Size = New System.Drawing.Size(93, 31)
         Me.Button49.TabIndex = 6
+        Me.Button49.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button49.Text = "Stored to CH14"
         Me.Button49.UseVisualStyleBackColor = True
         '
@@ -1179,6 +1181,7 @@ Partial Class Form1
         Me.Button48.Name = "Button48"
         Me.Button48.Size = New System.Drawing.Size(93, 31)
         Me.Button48.TabIndex = 6
+        Me.Button48.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button48.Text = "Stored to CH13"
         Me.Button48.UseVisualStyleBackColor = True
         '
@@ -1284,6 +1287,7 @@ Partial Class Form1
         Me.Button47.Name = "Button47"
         Me.Button47.Size = New System.Drawing.Size(93, 36)
         Me.Button47.TabIndex = 6
+        Me.Button47.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button47.Text = "Stored to CH12"
         Me.Button47.UseVisualStyleBackColor = True
         '
@@ -1389,6 +1393,7 @@ Partial Class Form1
         Me.Button46.Name = "Button46"
         Me.Button46.Size = New System.Drawing.Size(93, 38)
         Me.Button46.TabIndex = 6
+        Me.Button46.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button46.Text = "Stored to CH11"
         Me.Button46.UseVisualStyleBackColor = True
         '
@@ -1504,6 +1509,7 @@ Partial Class Form1
         Me.Button45.Name = "Button45"
         Me.Button45.Size = New System.Drawing.Size(93, 36)
         Me.Button45.TabIndex = 6
+        Me.Button45.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button45.Text = "Stored to CH9 and CH10"
         Me.Button45.UseVisualStyleBackColor = True
         '
@@ -1619,6 +1625,7 @@ Partial Class Form1
         Me.Button44.Name = "Button44"
         Me.Button44.Size = New System.Drawing.Size(93, 36)
         Me.Button44.TabIndex = 6
+        Me.Button44.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button44.Text = "Stored to CH8"
         Me.Button44.UseVisualStyleBackColor = True
         '
@@ -1724,6 +1731,7 @@ Partial Class Form1
         Me.Button43.Name = "Button43"
         Me.Button43.Size = New System.Drawing.Size(93, 34)
         Me.Button43.TabIndex = 6
+        Me.Button43.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button43.Text = "Stored to CH7"
         Me.Button43.UseVisualStyleBackColor = True
         '
@@ -1829,6 +1837,7 @@ Partial Class Form1
         Me.Button42.Name = "Button42"
         Me.Button42.Size = New System.Drawing.Size(93, 34)
         Me.Button42.TabIndex = 6
+        Me.Button42.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button42.Text = "Stored to CH6"
         Me.Button42.UseVisualStyleBackColor = True
         '
@@ -1935,6 +1944,7 @@ Partial Class Form1
         Me.Button41.Size = New System.Drawing.Size(93, 29)
         Me.Button41.TabIndex = 6
         Me.Button41.Text = "Stored to CH5"
+        Me.Button41.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button41.UseVisualStyleBackColor = True
         '
         'Label115
@@ -2049,6 +2059,7 @@ Partial Class Form1
         Me.Button40.Name = "Button40"
         Me.Button40.Size = New System.Drawing.Size(93, 35)
         Me.Button40.TabIndex = 6
+        Me.Button40.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button40.Text = "Stored to CH4"
         Me.Button40.UseVisualStyleBackColor = True
         '
@@ -2174,6 +2185,7 @@ Partial Class Form1
         Me.Button39.Name = "Button39"
         Me.Button39.Size = New System.Drawing.Size(93, 36)
         Me.Button39.TabIndex = 6
+        Me.Button39.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button39.Text = "Stored to CH3"
         Me.Button39.UseVisualStyleBackColor = True
         '
@@ -2300,6 +2312,7 @@ Partial Class Form1
         Me.Button38.Size = New System.Drawing.Size(93, 35)
         Me.Button38.TabIndex = 6
         Me.Button38.Text = "Stored to CH2"
+        Me.Button38.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button38.UseVisualStyleBackColor = True
         '
         'Label99
@@ -2425,6 +2438,7 @@ Partial Class Form1
         Me.Button37.Size = New System.Drawing.Size(93, 34)
         Me.Button37.TabIndex = 6
         Me.Button37.Text = "Stored to CH1"
+        Me.Button37.Font = New Font("Arial", 8, FontStyle.Regular)
         Me.Button37.UseVisualStyleBackColor = True
         '
         'Label98
@@ -2498,7 +2512,7 @@ Partial Class Form1
         Me.GroupBox1.Location = New System.Drawing.Point(13, 10)
         Me.GroupBox1.Margin = New System.Windows.Forms.Padding(2)
         Me.GroupBox1.Name = "GroupBox1"
-        Me.GroupBox1.Padding = New System.Windows.Forms.Padding(2)
+        Me.GroupBox1.Padding = New System.Windows.Forms.Padding(5)
         Me.GroupBox1.Size = New System.Drawing.Size(615, 764)
         Me.GroupBox1.TabIndex = 0
         Me.GroupBox1.TabStop = False
@@ -2531,7 +2545,7 @@ Partial Class Form1
         'DataGridView3
         '
         Me.DataGridView3.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
-        Me.DataGridView3.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.ColumnIv3, Me.Column28, Me.Column29, Me.Column30, Me.Column31, Me.Column34, Me.Column32, Me.Column33, Me.Column37, Me.Column38, Me.Column35, Me.Column36})
+        Me.DataGridView3.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.Column28, Me.Column29, Me.Column30, Me.Column31, Me.Column34, Me.Column32, Me.Column33, Me.Column37, Me.Column38, Me.Column35, Me.Column36})
         Me.DataGridView3.Location = New System.Drawing.Point(5, 18)
         Me.DataGridView3.Name = "DataGridView3"
         Me.DataGridView3.RowHeadersWidth = 62
@@ -2658,7 +2672,7 @@ Partial Class Form1
         'DataGridView2
         '
         Me.DataGridView2.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
-        Me.DataGridView2.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.ColumnIv2, Me.Column16, Me.Column17, Me.Column18, Me.Column19, Me.Column20, Me.Column26, Me.Column21, Me.Column27, Me.Column24, Me.Column22, Me.Column23, Me.Column25})
+        Me.DataGridView2.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.Column16, Me.Column17, Me.Column18, Me.Column19, Me.Column20, Me.Column26, Me.Column21, Me.Column27, Me.Column24, Me.Column22, Me.Column23, Me.Column25})
         Me.DataGridView2.Location = New System.Drawing.Point(0, 18)
         Me.DataGridView2.Name = "DataGridView2"
         Me.DataGridView2.RowHeadersWidth = 62
@@ -2781,6 +2795,7 @@ Partial Class Form1
         Me.GroupBox28.TabIndex = 12
         Me.GroupBox28.TabStop = False
         Me.GroupBox28.Text = "GSM"
+
         '
         'PictureBox15
         '
@@ -2797,7 +2812,7 @@ Partial Class Form1
         Me.DataGridView1.AccessibleName = ""
         Me.DataGridView1.AllowUserToOrderColumns = True
         Me.DataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
-        Me.DataGridView1.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.ColumnIv, Me.Column5, Me.Column6, Me.Column14, Me.Column15, Me.Column7, Me.Column8, Me.Column9, Me.Column13, Me.Column10, Me.Column12, Me.Column11})
+        Me.DataGridView1.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.Column5, Me.Column6, Me.Column14, Me.Column15, Me.Column7, Me.Column8, Me.Column9, Me.Column13, Me.Column10, Me.Column12, Me.Column11})
         Me.DataGridView1.Location = New System.Drawing.Point(5, 20)
         Me.DataGridView1.Name = "DataGridView1"
         Me.DataGridView1.RowHeadersWidth = 62
@@ -2903,26 +2918,27 @@ Partial Class Form1
         Me.CheckedListBox1.Items.AddRange(New Object() {"All", "Telkomsel", "Indosat", "Three", "XLComindo", "Smarfren"})
         Me.CheckedListBox1.Location = New System.Drawing.Point(341, 673)
         Me.CheckedListBox1.Name = "CheckedListBox1"
-        Me.CheckedListBox1.Size = New System.Drawing.Size(159, 49)
+        Me.CheckedListBox1.Size = New System.Drawing.Size(159, 80)
         Me.CheckedListBox1.TabIndex = 5
         '
         'Button2
         '
         Me.Button2.Location = New System.Drawing.Point(176, 673)
         Me.Button2.Name = "Button2"
-        Me.Button2.Size = New System.Drawing.Size(151, 23)
+        Me.Button2.Size = New System.Drawing.Size(160, 30)
         Me.Button2.TabIndex = 4
         Me.Button2.Text = "Restart Channel Analyzer"
-        Me.Button2.UseVisualStyleBackColor = True
+        Me.Button2.ForeColor = Color.Maroon
         '
         'Button1
         '
         Me.Button1.Location = New System.Drawing.Point(15, 673)
         Me.Button1.Name = "Button1"
-        Me.Button1.Size = New System.Drawing.Size(138, 23)
+        Me.Button1.Size = New System.Drawing.Size(160, 30)
         Me.Button1.TabIndex = 3
+        Me.Button1.BackColor = Color.Green
         Me.Button1.Text = "Start Channel Analyzer"
-        Me.Button1.UseVisualStyleBackColor = True
+        Me.Button1.ForeColor = Color.White
         '
         'TabPage2
         '
