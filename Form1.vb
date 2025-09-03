@@ -1,6 +1,8 @@
-﻿Imports System.ComponentModel
+﻿Imports System.Collections.Generic
+Imports System.ComponentModel
 Imports System.ComponentModel.Design
 Imports System.Data.SqlClient
+Imports System.Drawing.Drawing2D
 Imports System.Net
 Imports System.Net.NetworkInformation
 Imports System.Net.Sockets
@@ -8,16 +10,18 @@ Imports System.Text
 Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports System.Windows.Forms
+Imports System.Windows.Drawing
 Imports System.Windows.Forms.DataVisualization.Charting
-Imports System.Drawing.Drawing2D
+Imports System.Security.Authentication.ExtendedProtection
+Imports System.Runtime.Remoting.Channels
 
 Public Class Form1
 
-    Private connectionString As String
-    Private buttonStates As Dictionary(Of Integer, Boolean)
+    Private connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+    Private buttonStates As New Dictionary(Of Integer, Boolean)()
     Private WithEvents pingTimer As System.Windows.Forms.Timer
-    Private originalValues As Dictionary(Of String, String)
-    Private editModeButtons As Dictionary(Of Integer, Button)
+    Private originalValues As New Dictionary(Of String, String)
+    Private editModeButtons As New Dictionary(Of Integer, Button)()
     Private udpClientLteWcdma As UdpClient
     Private udpClientGsm As UdpClient
     Private receivingThread As Thread
@@ -37,10 +41,6 @@ Public Class Form1
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
-            connectionString = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
-            buttonStates = New Dictionary(Of Integer, Boolean)()
-            originalValues = New Dictionary(Of String, String)()
-            editModeButtons = New Dictionary(Of Integer, Button)()
             isListening = False
             lteWcdmaEndpoint = New IPEndPoint(IPAddress.Parse("192.168.1.99"), 9001)
             gsmEndpoint = New IPEndPoint(IPAddress.Parse("192.168.1.100"), 9001)
@@ -89,13 +89,13 @@ Public Class Form1
 
     Private Sub InitializeProgressIndicator()
         progressPanel = New Panel()
-        progressPanel.Size = New Size(300, 80)
+        progressPanel.Size = New Size(400, 80)
         progressPanel.Visible = False
         progressLabel = New Label()
         progressLabel.Text = "Analyzing channels"
         progressLabel.ForeColor = Color.Black
         progressLabel.Location = New Point(60, 15)
-        progressLabel.Size = New Size(200, 20)
+        progressLabel.Size = New Size(400, 20)
         progressLabel.TextAlign = ContentAlignment.TopLeft
         progressLabel.Left = 0
         progressBar = New ProgressBar()
@@ -229,21 +229,21 @@ Public Class Form1
             End Using
 
             If DataGridView1.InvokeRequired Then
-                DataGridView1.Invoke(Sub() DataGridView1.Rows.Clear())
+                DataGridView1.Invoke(Sub() CType(DataGridView1.DataSource, DataTable).Clear())
             Else
-                DataGridView1.Rows.Clear()
+                CType(DataGridView1.DataSource, DataTable).Clear()
             End If
 
             If DataGridView2.InvokeRequired Then
-                DataGridView2.Invoke(Sub() DataGridView2.Rows.Clear())
+                DataGridView2.Invoke(Sub() CType(DataGridView1.DataSource, DataTable).Clear())
             Else
-                DataGridView2.Rows.Clear()
+                CType(DataGridView2.DataSource, DataTable).Clear()
             End If
 
             If DataGridView3.InvokeRequired Then
-                DataGridView3.Invoke(Sub() DataGridView3.Rows.Clear())
+                DataGridView3.Invoke(Sub() CType(DataGridView1.DataSource, DataTable).Clear())
             Else
-                DataGridView3.Rows.Clear()
+                CType(DataGridView3.DataSource, DataTable).Clear()
             End If
         Catch ex As Exception
             Console.WriteLine("Error clearing channel data: " & ex.Message)
@@ -255,8 +255,8 @@ Public Class Form1
     End Sub
 
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        StopChannelAnalyzer()
-        Thread.Sleep(1000)
+        ShowProgressIndicator()
+        progressLabel.Text = "Restarting Channel Analyzer"
         StartChannelAnalyzer()
     End Sub
 
@@ -417,6 +417,23 @@ Public Class Form1
         End Try
     End Sub
 
+    Private Sub SafeUpdateLabel(text As String)
+        If progressLabel.InvokeRequired Then
+            progressLabel.Invoke(Sub() progressLabel.Text = text)
+        Else
+            progressLabel.Text = text
+        End If
+    End Sub
+
+    Private Sub SafeUpdateProgressBar(visible As Boolean)
+        If progressBar.InvokeRequired Then
+            progressBar.Invoke(Sub() progressBar.Visible = visible)
+        Else
+            progressBar.Visible = visible
+        End If
+    End Sub
+
+
     Private Sub ReceiveData()
         Dim remoteEP As New IPEndPoint(IPAddress.Any, 0)
 
@@ -425,7 +442,6 @@ Public Class Form1
                 If udpClientLteWcdma.Available > 0 Then
                     Dim receiveBytes As Byte() = udpClientLteWcdma.Receive(remoteEP)
                     Dim response As String = Encoding.UTF8.GetString(receiveBytes)
-                    progressLabel.Text = response.Substring(0, 20)
                     ProcessLteWcdmaData(response)
 
                 End If
@@ -435,13 +451,13 @@ Public Class Form1
                     Dim remoteEP1 As New IPEndPoint(IPAddress.Any, 0)
                     Dim receiveBytes As Byte() = udpClientGsm.Receive(remoteEP1)
                     Dim response As String = Encoding.UTF8.GetString(receiveBytes)
-                    progressLabel.Text = response.Substring(0, 20)
+                    SafeUpdateLabel(response.Substring(0, 20))
                     ProcessGsmData(response)
 
                 End If
 
             Catch ex As Exception
-                progressBar.Visible = False
+                SafeUpdateProgressBar(False)
                 progressLabel.Text = "Error occured, try again"
                 If isListening Then
                     Console.WriteLine("Error receiving data: " & ex.Message)
@@ -468,7 +484,7 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessGsmData(line As String)
-        Console.WriteLine(line)
+        SafeUpdateLabel("Analyzing channels : Gsm : " & line)
         Try
             Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
             Dim lacMatch As Match = Regex.Match(line, "lac\[(\d+)\]")
@@ -510,7 +526,7 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessLteData(line As String)
-        Console.WriteLine(line)
+        SafeUpdateLabel(line)
         Try
             ' Regex matches
             Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
@@ -609,6 +625,7 @@ Public Class Form1
 
 
     Private Sub ProcessWcdmaData(line As String)
+        SafeUpdateLabel(line)
         Try
             Dim parts As String() = line.Split(","c)
 
@@ -801,12 +818,20 @@ Public Class Form1
             Return
         End If
 
-        ' Ensure string columns
         For Each colName In {"nb_earfcn", "rat", "band", "provider_name", "plmn", "earfcn"}
             If dt.Columns.Contains(colName) AndAlso dt.Columns(colName).DataType IsNot GetType(String) Then
-                dt.Columns(colName).DataType = GetType(String)
+                Dim newColName = colName & "_str"
+                dt.Columns.Add(newColName, GetType(String))
+
+                For Each row1 As DataRow In dt.Rows
+                    row1(newColName) = row1(colName).ToString()
+                Next
+
+                dt.Columns.Remove(colName)
+                dt.Columns(newColName).ColumnName = colName
             End If
         Next
+
 
         Dim row As DataRow = dt.NewRow()
 
@@ -1868,7 +1893,11 @@ Public Class Form1
 
             For channel As Integer = 1 To 14
                 Dim dataTable As DataTable = baseStationHelper.GetBaseStationByChannel(channel)
-                LoadChannelData(channel, dataTable)
+                If Me.InvokeRequired Then
+                    Me.Invoke(Sub() LoadChannelData(channel, dataTable))
+                Else
+                    LoadChannelData(channel, dataTable)
+                End If
             Next
 
         Catch ex As SqlException
