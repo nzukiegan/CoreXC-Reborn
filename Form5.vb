@@ -5,8 +5,16 @@ Imports System.Drawing
 
 Public Class Form5
     Private ReadOnly connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+    Private providerFilter As List(Of String)
 
     Public Sub New()
+        InitializeComponent()
+    End Sub
+
+    Public Sub New(filter As List(Of String))
+        providerFilter = filter
+        Console.WriteLine("Operator filter " & providerFilter.ToString())
+
         InitializeComponent()
     End Sub
 
@@ -14,25 +22,131 @@ Public Class Form5
         ApplyTheme()
         LoadLTECellsData()
 
-        ' Wire events so Apply button state updates if user edits values
         AddHandler DataGridView1.CellValueChanged, AddressOf DataGridView1_CellValueChanged
         AddHandler DataGridView1.CurrentCellDirtyStateChanged, AddressOf DataGridView1_CurrentCellDirtyStateChanged
     End Sub
 
-    ' ---------------------------
-    ' Main loader
-    ' ---------------------------
+    Private Shared Function ParseNbEarfcn(raw As String) As List(Of KeyValuePair(Of Integer, Integer))
+        Dim res As New List(Of KeyValuePair(Of Integer, Integer))()
+        If String.IsNullOrWhiteSpace(raw) Then Return res
+        Dim pairRx As New Regex("\[\s*(\d+)\s*[,;\s]\s*(\d+)\s*\]", RegexOptions.Compiled)
+        For Each m As Match In pairRx.Matches(raw)
+            Dim ear As Integer = Integer.Parse(m.Groups(1).Value)
+            Dim wt As Integer = Integer.Parse(m.Groups(2).Value)
+            res.Add(New KeyValuePair(Of Integer, Integer)(ear, wt))
+        Next
+        Return res
+    End Function
+
+    Private Shared Function RecommendEarfcnFromPairs(pairs As List(Of KeyValuePair(Of Integer, Integer))) As Integer?
+        If pairs Is Nothing OrElse pairs.Count = 0 Then Return Nothing
+        Dim maxW = pairs.Max(Function(p) p.Value)
+        Dim candidates = pairs.Where(Function(p) p.Value = maxW).Select(Function(p) p.Key)
+        Return candidates.Min()
+    End Function
+
+    Private Shared Function MapEarfcnToBandInfo(earfcn As Integer) As (bx As String, mhz As String, duplex As String)
+        Dim data = {
+        Tuple.Create(1, 599, "B1", "2100", "FDD-LTE"),
+        Tuple.Create(600, 1199, "B2", "1900", "FDD-LTE"),
+        Tuple.Create(1200, 1949, "B3", "1800", "FDD-LTE"),
+        Tuple.Create(1950, 2399, "B4", "1700", "FDD-LTE"),
+        Tuple.Create(2400, 2649, "B5", "850", "FDD-LTE"),
+        Tuple.Create(2650, 2749, "B6", "800", "FDD-LTE"),
+        Tuple.Create(2750, 3449, "B7", "2600", "FDD-LTE"),
+        Tuple.Create(3450, 3799, "B8", "900", "FDD-LTE"),
+        Tuple.Create(3800, 4149, "B9", "1800", "FDD-LTE"),
+        Tuple.Create(4150, 4749, "B10", "1700", "FDD-LTE"),
+        Tuple.Create(4750, 4999, "B11", "1500", "FDD-LTE"),
+        Tuple.Create(5000, 5179, "B12", "700", "FDD-LTE"),
+        Tuple.Create(5180, 5279, "B13", "700", "FDD-LTE"),
+        Tuple.Create(5280, 5379, "B14", "700", "FDD-LTE"),
+        Tuple.Create(5730, 5849, "B17", "700", "FDD-LTE"),
+        Tuple.Create(5850, 5999, "B18", "800", "FDD-LTE"),
+        Tuple.Create(6000, 6149, "B19", "850", "FDD-LTE"),
+        Tuple.Create(6150, 6449, "B20", "800", "FDD-LTE"),
+        Tuple.Create(6450, 6599, "B21", "1500", "FDD-LTE"),
+        Tuple.Create(6600, 7399, "B28", "700", "FDD-LTE"),
+        Tuple.Create(9000, 9209, "B32", "1500", "FDD-LTE"),
+        Tuple.Create(36000, 36199, "B33", "1900", "TDD-LTE"),
+        Tuple.Create(36200, 36349, "B34", "2000", "TDD-LTE"),
+        Tuple.Create(36350, 36949, "B35", "1900", "TDD-LTE"),
+        Tuple.Create(36950, 37549, "B36", "1900", "TDD-LTE"),
+        Tuple.Create(37550, 37749, "B37", "1900", "TDD-LTE"),
+        Tuple.Create(37750, 38249, "B38", "2600", "TDD-LTE"),
+        Tuple.Create(38250, 38649, "B39", "1900", "TDD-LTE"),
+        Tuple.Create(38650, 39649, "B40", "2300", "TDD-LTE"),
+        Tuple.Create(39650, 41589, "B41", "2500", "TDD-LTE"),
+        Tuple.Create(41590, 43589, "B42", "3500", "TDD-LTE"),
+        Tuple.Create(43590, 45589, "B43", "3700", "TDD-LTE")
+    }
+
+        For Each t In data
+            If earfcn >= t.Item1 AndAlso earfcn <= t.Item2 Then
+                Return (t.Item3, t.Item4, t.Item5)
+            End If
+        Next
+        Return ("", "", "")
+    End Function
+
+    Private Shared Function ChannelsForBandCode(bx As String) As Integer()
+        Select Case bx.ToUpperInvariant()
+            Case "B8"  ' 900 MHz
+                Return {1, 2}
+            Case "B3"  ' 1800 MHz
+                Return {3, 4}
+            Case "B1"  ' 2100 MHz
+                Return {5, 6}
+            Case "B5"  ' 850 MHz
+                Return {7, 8}
+            Case "B40" ' 2300 MHz (TDD)
+                Return {9, 10}
+            Case "B28" ' 700 MHz
+                Return {11, 12}
+            Case "B7"  ' 2600 MHz
+                Return {13, 14}
+            Case Else
+                Return Array.Empty(Of Integer)()
+        End Select
+    End Function
+
     Private Sub LoadLTECellsData()
         Try
             Using connection As New SqlConnection(connectionString)
                 connection.Open()
 
-                Dim lteQuery As String = "SELECT lte_id, provider_name, plmn, mcc, mnc, band, pri, earfcn, nb_earfcn, rat, lac, cell_id, rsrp, Timestamp FROM lte_cells"
-                Dim lteTable As New DataTable()
+                Dim filters As List(Of String) = Nothing
 
+                If providerFilter IsNot Nothing AndAlso providerFilter.Count > 0 Then
+                    filters = providerFilter.Select(Function(f) f.ToLower().Trim()).ToList()
+                Else
+                    filters = New List(Of String)()
+                End If
+
+
+                Dim lteQuery As String = "SELECT lte_id, provider_name, plmn, mcc, mnc, band, pri, earfcn, nb_earfcn, rat, lac, cell_id, rsrp, [Timestamp]
+                          FROM lte_cells"
+
+                If filters.Count > 0 AndAlso Not filters.Contains("All") Then
+                    Dim paramNames As New List(Of String)()
+                    For i As Integer = 0 To filters.Count - 1
+                        paramNames.Add("@p" & i)
+                    Next
+                    lteQuery &= " WHERE LOWER(provider_name) IN (" & String.Join(",", paramNames) & ")"
+                End If
+
+
+                Dim lteTable As New DataTable()
                 Using adapter As New SqlDataAdapter(lteQuery, connection)
+                    If filters.Count > 0 AndAlso Not filters.Contains("All") Then
+                        For i As Integer = 0 To filters.Count - 1
+                            adapter.SelectCommand.Parameters.AddWithValue("@p" & i, filters(i))
+                            Console.WriteLine($"Parameter added: @p{i} = {filters(i)}")
+                        Next
+                    End If
                     adapter.Fill(lteTable)
                 End Using
+
 
                 Dim result As New DataTable()
                 result.Columns.Add("channel", GetType(Integer))
@@ -44,171 +158,124 @@ Public Class Form5
                 result.Columns.Add("cell_id", GetType(Long))
 
                 For ch As Integer = 1 To 14
-                    Dim newRow As DataRow = result.NewRow()
-                    newRow("channel") = ch
+                    Dim r = result.NewRow()
+                    r("channel") = ch
+                    r("band") = ChannelDefaultBand(ch)
+                    r("mcc") = DBNull.Value
+                    r("mnc") = DBNull.Value
+                    r("earfcn") = DBNull.Value
+                    r("lte_id") = DBNull.Value
+                    r("cell_id") = DBNull.Value
+                    result.Rows.Add(r)
+                Next
 
-                    ' Pre-fill default descriptive band for each channel
-                    newRow("band") = ChannelDefaultBand(ch)
+                Dim groups = From row As DataRow In lteTable.Rows
+                             Let mccVal = If(row("mcc") Is DBNull.Value, Nothing, row("mcc"))
+                             Let mncVal = If(row("mnc") Is DBNull.Value, Nothing, row("mnc"))
+                             Group row By Key = (MCC:=If(mccVal Is Nothing, -1, Convert.ToInt32(mccVal)),
+                                             MNC:=If(mncVal Is Nothing, -1, Convert.ToInt32(mncVal))) Into grp = Group
 
-                    ' find first candidate in lteTable that maps to this channel
-                    Dim candidate As DataRow = Nothing
-                    For Each lr As DataRow In lteTable.Rows
-                        Dim bandStr As String = If(lr("band") IsNot DBNull.Value, lr("band").ToString().Trim(), String.Empty)
-                        If ChannelNumbersForBand(bandStr).Contains(ch) Then
-                            candidate = lr
-                            Exit For
+                Dim filled As New HashSet(Of Integer)()
+
+                Dim assignToFirstFree =
+                Function(targetChannels As Integer(),
+                         assign As Action(Of DataRow)) As Boolean
+
+                    For Each ch In targetChannels
+                        If Not filled.Contains(ch) Then
+                            Dim row = result.Rows.Cast(Of DataRow)().First(Function(rr) Convert.ToInt32(rr("channel")) = ch)
+                            assign(row)
+                            filled.Add(ch)
+                            Return True
+                        End If
+                    Next
+                    Return False
+                End Function
+
+                For Each g In groups
+                    Dim allPairs As New List(Of KeyValuePair(Of Integer, Integer))()
+                    For Each r In g.grp
+                        Dim nbRaw As String = If(r("nb_earfcn") Is DBNull.Value, "", r("nb_earfcn").ToString())
+                        If Not String.IsNullOrWhiteSpace(nbRaw) Then
+                            allPairs.AddRange(ParseNbEarfcn(nbRaw))
                         End If
                     Next
 
-                    If candidate IsNot Nothing Then
-                        ' override band with candidate's more specific band if present
-                        If candidate("band") IsNot DBNull.Value Then
-                            newRow("band") = candidate("band").ToString()
-                        End If
+                    Dim recEarfcn? As Integer = RecommendEarfcnFromPairs(allPairs)
+                    If Not recEarfcn.HasValue Then
+                        Dim anyEarfcn = g.grp.Select(Function(r) If(r("earfcn") Is DBNull.Value, CType(Nothing, Integer?), Convert.ToInt32(r("earfcn")))).Where(Function(v) v.HasValue).Select(Function(v) v.Value).DefaultIfEmpty().FirstOrDefault()
+                        If anyEarfcn <> 0 Then recEarfcn = anyEarfcn
+                    End If
+                    If Not recEarfcn.HasValue Then Continue For
 
-                        ' mcc
-                        If candidate.Table.Columns.Contains("mcc") AndAlso candidate("mcc") IsNot DBNull.Value Then
-                            Dim mccVal As Integer
-                            If Integer.TryParse(candidate("mcc").ToString(), mccVal) Then
-                                newRow("mcc") = mccVal
-                            Else
-                                newRow("mcc") = DBNull.Value
-                            End If
-                        Else
-                            newRow("mcc") = DBNull.Value
-                        End If
+                    Dim bandInfo = MapEarfcnToBandInfo(recEarfcn.Value)
+                    If String.IsNullOrEmpty(bandInfo.bx) Then Continue For
 
-                        ' mnc
-                        If candidate.Table.Columns.Contains("mnc") AndAlso candidate("mnc") IsNot DBNull.Value Then
-                            Dim mncVal As Integer
-                            If Integer.TryParse(candidate("mnc").ToString(), mncVal) Then
-                                newRow("mnc") = mncVal
-                            Else
-                                newRow("mnc") = DBNull.Value
-                            End If
-                        Else
-                            newRow("mnc") = DBNull.Value
-                        End If
+                    Dim targetCh = ChannelsForBandCode(bandInfo.bx)
+                    If targetCh.Length = 0 Then Continue For
 
-                        ' earfcn
-                        If candidate.Table.Columns.Contains("earfcn") AndAlso candidate("earfcn") IsNot DBNull.Value Then
-                            Dim earfcnVal As Integer
-                            If Integer.TryParse(candidate("earfcn").ToString(), earfcnVal) Then
-                                newRow("earfcn") = earfcnVal
-                            Else
-                                newRow("earfcn") = DBNull.Value
-                            End If
-                        Else
-                            newRow("earfcn") = DBNull.Value
-                        End If
-
-                        ' lte_id
-                        If candidate.Table.Columns.Contains("lte_id") AndAlso candidate("lte_id") IsNot DBNull.Value Then
-                            Dim lteIdVal As Integer
-                            If Integer.TryParse(candidate("lte_id").ToString(), lteIdVal) Then
-                                newRow("lte_id") = lteIdVal
-                            Else
-                                newRow("lte_id") = DBNull.Value
-                            End If
-                        Else
-                            newRow("lte_id") = DBNull.Value
-                        End If
-
-                        ' cell_id
-                        If candidate.Table.Columns.Contains("cell_id") AndAlso candidate("cell_id") IsNot DBNull.Value Then
-                            Dim cellIdVal As Long
-                            If Long.TryParse(candidate("cell_id").ToString(), cellIdVal) Then
-                                newRow("cell_id") = cellIdVal
-                            Else
-                                newRow("cell_id") = DBNull.Value
-                            End If
-                        Else
-                            newRow("cell_id") = DBNull.Value
-                        End If
-                    Else
-                        ' no candidate: keep default band and leave rest empty
-                        newRow("mcc") = DBNull.Value
-                        newRow("mnc") = DBNull.Value
-                        newRow("earfcn") = DBNull.Value
-                        newRow("lte_id") = DBNull.Value
-                        newRow("cell_id") = DBNull.Value
+                    Dim rep As DataRow =
+                    g.grp.FirstOrDefault(Function(r)
+                                             Return (Not r("earfcn") Is DBNull.Value) AndAlso Convert.ToInt32(r("earfcn")) = recEarfcn.Value
+                                         End Function)
+                    If rep Is Nothing Then
+                        rep = g.grp.First()
                     End If
 
-                    result.Rows.Add(newRow)
+                    assignToFirstFree(targetCh,
+                    Sub(dst As DataRow)
+                        dst("band") = bandInfo.bx & " (" & bandInfo.mhz & " MHz)"
+
+                        If g.Key.MCC >= 0 Then dst("mcc") = g.Key.MCC Else dst("mcc") = DBNull.Value
+                        If g.Key.MNC >= 0 Then dst("mnc") = g.Key.MNC Else dst("mnc") = DBNull.Value
+
+                        dst("earfcn") = recEarfcn.Value
+
+                        If rep.Table.Columns.Contains("lte_id") AndAlso Not (rep("lte_id") Is DBNull.Value) Then
+                            dst("lte_id") = Convert.ToInt32(rep("lte_id"))
+                        Else
+                            dst("lte_id") = DBNull.Value
+                        End If
+
+                        If rep.Table.Columns.Contains("cell_id") AndAlso Not (rep("cell_id") Is DBNull.Value) Then
+                            dst("cell_id") = Convert.ToInt64(rep("cell_id"))
+                        Else
+                            dst("cell_id") = DBNull.Value
+                        End If
+                    End Sub)
                 Next
 
                 DataGridView1.DataSource = result
-
-                ' Configure columns exactly as requested
                 DataGridView1.AutoGenerateColumns = False
                 DataGridView1.Columns.Clear()
 
-                Dim colChannel As New DataGridViewTextBoxColumn()
-                colChannel.Name = "channel"
-                colChannel.HeaderText = "CHANNEL"
-                colChannel.DataPropertyName = "channel"
-                colChannel.ReadOnly = True
-                colChannel.Width = 60
-                DataGridView1.Columns.Add(colChannel)
+                Dim colChannel As New DataGridViewTextBoxColumn() With {.Name = "channel", .HeaderText = "CHANNEL", .DataPropertyName = "channel", .ReadOnly = True, .Width = 60}
+                Dim colMcc As New DataGridViewTextBoxColumn() With {.Name = "mcc", .HeaderText = "MCC", .DataPropertyName = "mcc", .Width = 80}
+                Dim colMnc As New DataGridViewTextBoxColumn() With {.Name = "mnc", .HeaderText = "MNC", .DataPropertyName = "mnc", .Width = 80}
+                Dim colBand As New DataGridViewTextBoxColumn() With {.Name = "band", .HeaderText = "BAND", .DataPropertyName = "band", .Width = 180}
+                Dim colEarfcn As New DataGridViewTextBoxColumn() With {.Name = "earfcn", .HeaderText = "EARFCN", .DataPropertyName = "earfcn", .Width = 100}
+                Dim colLteId As New DataGridViewTextBoxColumn() With {.Name = "lte_id", .DataPropertyName = "lte_id", .Visible = False}
+                Dim colCellId As New DataGridViewTextBoxColumn() With {.Name = "cell_id", .DataPropertyName = "cell_id", .Visible = False}
 
-                Dim colMcc As New DataGridViewTextBoxColumn()
-                colMcc.Name = "mcc"
-                colMcc.HeaderText = "MCC"
-                colMcc.DataPropertyName = "mcc"
-                colMcc.Width = 80
-                DataGridView1.Columns.Add(colMcc)
+                DataGridView1.Columns.AddRange({colChannel, colMcc, colMnc, colBand, colEarfcn, colLteId, colCellId})
 
-                Dim colMnc As New DataGridViewTextBoxColumn()
-                colMnc.Name = "mnc"
-                colMnc.HeaderText = "MNC"
-                colMnc.DataPropertyName = "mnc"
-                colMnc.Width = 80
-                DataGridView1.Columns.Add(colMnc)
-
-                Dim colBand As New DataGridViewTextBoxColumn()
-                colBand.Name = "band"
-                colBand.HeaderText = "BAND"
-                colBand.DataPropertyName = "band"
-                colBand.Width = 180
-                DataGridView1.Columns.Add(colBand)
-
-                Dim colEarfcn As New DataGridViewTextBoxColumn()
-                colEarfcn.Name = "earfcn"
-                colEarfcn.HeaderText = "EARFCN"
-                colEarfcn.DataPropertyName = "earfcn"
-                colEarfcn.Width = 100
-                DataGridView1.Columns.Add(colEarfcn)
-
-                ' Hidden helpers
-                Dim colLteId As New DataGridViewTextBoxColumn()
-                colLteId.Name = "lte_id"
-                colLteId.DataPropertyName = "lte_id"
-                colLteId.Visible = False
-                DataGridView1.Columns.Add(colLteId)
-
-                Dim colCellId As New DataGridViewTextBoxColumn()
-                colCellId.Name = "cell_id"
-                colCellId.DataPropertyName = "cell_id"
-                colCellId.Visible = False
-                DataGridView1.Columns.Add(colCellId)
-
-                ' Apply button column (per-row, we will set enable state per cell)
-                Dim applyColumn As New DataGridViewButtonColumn()
-                applyColumn.Name = "apply"
-                applyColumn.HeaderText = "Apply Choice"
-                applyColumn.Text = "Apply"
-                applyColumn.UseColumnTextForButtonValue = False
-                applyColumn.Width = 90
+                Dim applyColumn As New DataGridViewButtonColumn() With {
+                .Name = "apply",
+                .HeaderText = "Apply Choice",
+                .Text = "Apply",
+                .UseColumnTextForButtonValue = False,
+                .Width = 90
+            }
                 applyColumn.DefaultCellStyle.BackColor = Color.Green
                 applyColumn.DefaultCellStyle.ForeColor = Color.White
                 DataGridView1.Columns.Add(applyColumn)
 
                 DataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-
                 UpdateApplyButtonsState()
             End Using
+
         Catch ex As Exception
-            MessageBox.Show("Error loading LTE channels: " & ex.Message)
+            Console.WriteLine("Error loading LTE channels: " & ex.StackTrace)
         End Try
     End Sub
 
@@ -225,7 +292,7 @@ Public Class Form5
             Case 9
                 Return "Band 40 (TDD 2300 MHz)"
             Case 10
-                Return "N/A"
+                Return "Band 40 (TDD 2300 MHz)"
             Case 11, 12
                 Return "Band 12/13 (700 MHz)"
             Case 13, 14
@@ -235,59 +302,6 @@ Public Class Form5
         End Select
     End Function
 
-    ' ---------------------------
-    ' Map band string to channel numbers (list)
-    ' ---------------------------
-    Private Function ChannelNumbersForBand(ByVal band As String) As List(Of Integer)
-        Dim result As New List(Of Integer)()
-        If String.IsNullOrWhiteSpace(band) Then Return result
-
-        Dim m As Match = Regex.Match(band, "(\d+)")
-        Dim bandNum As Integer = -1
-        If m.Success Then Integer.TryParse(m.Groups(1).Value, bandNum)
-
-        Select Case bandNum
-            Case 1
-                result.Add(5) : result.Add(6)
-            Case 2
-                ' no mapping in hardware
-            Case 3
-                result.Add(3) : result.Add(4)
-            Case 4
-                result.Add(5) : result.Add(6)
-            Case 5
-                result.Add(7) : result.Add(8)
-            Case 7
-                result.Add(13) : result.Add(14)
-            Case 8
-                result.Add(1) : result.Add(2)
-            Case 9
-                result.Add(3) : result.Add(4)
-            Case 12, 13
-                result.Add(11) : result.Add(12)
-            Case 40
-                result.Add(9)
-            Case 41
-                result.Add(13) : result.Add(14)
-            Case Else
-                Dim bLower = band.ToLowerInvariant()
-                If bLower.Contains("2300") OrElse bLower.Contains("band 40") Then result.Add(9)
-                If bLower.Contains("1800") Then
-                    If Not result.Contains(3) Then result.Add(3)
-                    If Not result.Contains(4) Then result.Add(4)
-                End If
-                If bLower.Contains("900") Then
-                    If Not result.Contains(1) Then result.Add(1)
-                    If Not result.Contains(2) Then result.Add(2)
-                End If
-        End Select
-
-        Return result
-    End Function
-
-    ' ---------------------------
-    ' Update per-row Apply button state and colors
-    ' ---------------------------
     Private Sub UpdateApplyButtonsState()
         For Each row As DataGridViewRow In DataGridView1.Rows
             If row.IsNewRow Then Continue For
@@ -310,9 +324,6 @@ Public Class Form5
         Next
     End Sub
 
-    ' ---------------------------
-    ' DataGridView events
-    ' ---------------------------
     Private Sub DataGridView1_CurrentCellDirtyStateChanged(sender As Object, e As EventArgs)
         If DataGridView1.IsCurrentCellDirty Then
             DataGridView1.CommitEdit(DataGridViewDataErrorContexts.Commit)
@@ -321,7 +332,6 @@ Public Class Form5
 
     Private Sub DataGridView1_CellValueChanged(sender As Object, e As DataGridViewCellEventArgs)
         If e.RowIndex >= 0 Then
-            ' If EARFCN or band changed - refresh apply states for that row
             If DataGridView1.Columns(e.ColumnIndex).Name = "earfcn" OrElse DataGridView1.Columns(e.ColumnIndex).Name = "band" Then
                 UpdateApplyButtonsState()
             End If
@@ -341,9 +351,6 @@ Public Class Form5
         End If
     End Sub
 
-    ' ---------------------------
-    ' Apply single row
-    ' ---------------------------
     Private Sub ApplyToBaseStation(rowIndex As Integer)
         Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
         Dim channelNumber As Integer = Convert.ToInt32(row.Cells("channel").Value)
@@ -375,8 +382,6 @@ Public Class Form5
     End Sub
 
     ' ---------------------------
-    ' Apply DB write (insert/update) -> stores numeric MHz for band
-    ' ---------------------------
     Private Sub ApplyToChannel(channelNumber As Integer, lteId As Integer, earfcn As Integer,
                               mcc As Integer, mnc As Integer, lac As Integer, cellId As Long, band As String)
         Try
@@ -391,7 +396,6 @@ Public Class Form5
                     exists = Convert.ToInt32(checkCmd.ExecuteScalar())
                 End Using
 
-                ' Convert band string (e.g. "Band 5 (850 MHz)") to integer MHz (850)
                 Dim bandMHz As Integer = ExtractBandMHz(band)
 
                 If exists > 0 Then
@@ -542,8 +546,8 @@ Public Class Form5
             .RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing
 
             ' Default cell style
-            .DefaultCellStyle.BackColor = Color.FromArgb(248, 248, 248)  ' very light grey
-            .DefaultCellStyle.ForeColor = Color.FromArgb(51, 51, 51)     ' dark grey text
+            .DefaultCellStyle.BackColor = Color.FromArgb(248, 248, 248)
+            .DefaultCellStyle.ForeColor = Color.FromArgb(51, 51, 51)
             .DefaultCellStyle.Font = New Font("Segoe UI", 8.5!, FontStyle.Bold)
             .DefaultCellStyle.SelectionBackColor = Color.Green
             .DefaultCellStyle.SelectionForeColor = Color.White
@@ -561,7 +565,6 @@ Public Class Form5
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
         End With
 
-        ' ----- Style Buttons -----
         Dim buttons As Button() = {Me.Button1, Me.Button2}
 
         For Each btn As Button In buttons

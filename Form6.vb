@@ -5,8 +5,15 @@ Imports System.Drawing
 
 Public Class Form6
     Private ReadOnly connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+    Private providerFilter As List(Of String)
 
     Public Sub New()
+        InitializeComponent()
+    End Sub
+
+    Public Sub New(filter As List(Of String))
+        providerFilter = filter
+        Console.WriteLine("Operator filter " & providerFilter.ToString())
         InitializeComponent()
     End Sub
 
@@ -14,305 +21,227 @@ Public Class Form6
         ApplyTheme()
         LoadGSMCellsData()
 
-        ' Wire events so Apply button state updates if user edits values
         AddHandler DataGridView1.CellValueChanged, AddressOf DataGridView1_CellValueChanged
         AddHandler DataGridView1.CurrentCellDirtyStateChanged, AddressOf DataGridView1_CurrentCellDirtyStateChanged
     End Sub
 
-    ' ---------------------------
-    ' Main loader
-    ' ---------------------------
     Private Sub LoadGSMCellsData()
         Try
             Using connection As New SqlConnection(connectionString)
                 connection.Open()
 
-                Dim gsmQuery As String = "SELECT gsm_id, ProviderName, plmn, mcc, mnc, band, arfcn, lac, cell_id, bsic, rssi, Timestamp FROM gsm_cells"
-                Dim gsmTable As New DataTable()
+                Dim filters As List(Of String) = Nothing
 
+                If providerFilter IsNot Nothing AndAlso providerFilter.Count > 0 Then
+                    filters = providerFilter.Select(Function(f) f.ToLower().Trim()).ToList()
+                Else
+                    filters = New List(Of String)()
+                End If
+
+
+                Dim gsmQuery As String = "
+    SELECT gsm_id, ProviderName, plmn, mcc, mnc, band, arfcn, lac, cell_id, bsic, rssi, nb_cell, [Timestamp]
+    FROM gsm_cells
+"
+
+                If filters.Count > 0 AndAlso Not filters.Contains("All") Then
+                    Dim paramNames As New List(Of String)()
+                    For i As Integer = 0 To filters.Count - 1
+                        paramNames.Add("@p" & i)
+                    Next
+                    gsmQuery &= " WHERE LOWER(ProviderName) IN (" & String.Join(",", paramNames) & ")"
+                End If
+
+
+                Dim gsmTable As New DataTable()
                 Using adapter As New SqlDataAdapter(gsmQuery, connection)
+                    If filters.Count > 0 AndAlso Not filters.Contains("All") Then
+                        For i As Integer = 0 To filters.Count - 1
+                            adapter.SelectCommand.Parameters.AddWithValue("@p" & i, filters(i))
+                            Console.WriteLine($"Parameter added: @p{i} = {filters(i)}")
+                        Next
+                    End If
                     adapter.Fill(gsmTable)
                 End Using
 
+
                 Dim result As New DataTable()
-                result.Columns.Add("channel", GetType(Integer))
-                result.Columns.Add("mcc", GetType(Integer))
-                result.Columns.Add("mnc", GetType(Integer))
+                result.Columns.Add("rank", GetType(Integer))
+                result.Columns.Add("plmn", GetType(String))
                 result.Columns.Add("band", GetType(String))
-                result.Columns.Add("arfcn", GetType(Integer))
-                result.Columns.Add("gsm_id", GetType(Integer))
-                result.Columns.Add("cell_id", GetType(Long))
-                result.Columns.Add("bsic", GetType(Integer))
+                result.Columns.Add("channel", GetType(Integer))
+                result.Columns.Add("gsmId", GetType(Integer))
 
-                For ch As Integer = 1 To 14
-                    Dim newRow As DataRow = result.NewRow()
-                    newRow("channel") = ch
-                    newRow("band") = ChannelDefaultBand(ch)
+                Dim allArfcns As New List(Of Tuple(Of Integer, String, Integer))()
 
-                    Dim candidate As DataRow = Nothing
-                    For Each gr As DataRow In gsmTable.Rows
-                        Dim bandStr As String = If(gr("band") IsNot DBNull.Value, gr("band").ToString().Trim(), String.Empty)
-                        If ChannelNumbersForBand(bandStr).Contains(ch) Then
-                            candidate = gr
-                            Exit For
-                        End If
-                    Next
+                For Each row As DataRow In gsmTable.Rows
+                    If Not IsDBNull(row("nb_cell")) Then
+                        Dim mcc As Integer = row.Field(Of Integer)("mcc")
+                        Dim mnc As Integer = row.Field(Of Integer)("mnc")
+                        Dim gsmId As Integer = row.Field(Of Integer)("gsm_id")
+                        Dim plmnStr As String = $"{mcc:D3}{mnc:D2}"
 
-                    If candidate IsNot Nothing Then
-                        If candidate("band") IsNot DBNull.Value Then
-                            newRow("band") = candidate("band").ToString()
-                        End If
+                        Dim raw As String = row.Field(Of String)("nb_cell")
+                        Dim parsed As List(Of Integer) = raw.Trim("["c, "]"c) _
+                        .Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries) _
+                        .Select(Function(s) Integer.Parse(s.Trim())) _
+                        .ToList()
 
-                        ' mcc
-                        If candidate.Table.Columns.Contains("mcc") AndAlso candidate("mcc") IsNot DBNull.Value Then
-                            Dim mccVal As Integer
-                            If Integer.TryParse(candidate("mcc").ToString(), mccVal) Then
-                                newRow("mcc") = mccVal
-                            Else
-                                newRow("mcc") = DBNull.Value
-                            End If
-                        Else
-                            newRow("mcc") = DBNull.Value
-                        End If
-
-                        ' mnc
-                        If candidate.Table.Columns.Contains("mnc") AndAlso candidate("mnc") IsNot DBNull.Value Then
-                            Dim mncVal As Integer
-                            If Integer.TryParse(candidate("mnc").ToString(), mncVal) Then
-                                newRow("mnc") = mncVal
-                            Else
-                                newRow("mnc") = DBNull.Value
-                            End If
-                        Else
-                            newRow("mnc") = DBNull.Value
-                        End If
-
-                        ' arfcn
-                        If candidate.Table.Columns.Contains("arfcn") AndAlso candidate("arfcn") IsNot DBNull.Value Then
-                            Dim arfcnVal As Integer
-                            If Integer.TryParse(candidate("arfcn").ToString(), arfcnVal) Then
-                                newRow("arfcn") = arfcnVal
-                            Else
-                                newRow("arfcn") = DBNull.Value
-                            End If
-                        Else
-                            newRow("arfcn") = DBNull.Value
-                        End If
-
-                        ' gsm_id
-                        If candidate.Table.Columns.Contains("gsm_id") AndAlso candidate("gsm_id") IsNot DBNull.Value Then
-                            Dim gsmIdVal As Integer
-                            If Integer.TryParse(candidate("gsm_id").ToString(), gsmIdVal) Then
-                                newRow("gsm_id") = gsmIdVal
-                            Else
-                                newRow("gsm_id") = DBNull.Value
-                            End If
-                        Else
-                            newRow("gsm_id") = DBNull.Value
-                        End If
-
-                        ' cell_id
-                        If candidate.Table.Columns.Contains("cell_id") AndAlso candidate("cell_id") IsNot DBNull.Value Then
-                            Dim cellIdVal As Long
-                            If Long.TryParse(candidate("cell_id").ToString(), cellIdVal) Then
-                                newRow("cell_id") = cellIdVal
-                            Else
-                                newRow("cell_id") = DBNull.Value
-                            End If
-                        Else
-                            newRow("cell_id") = DBNull.Value
-                        End If
-
-                        ' bsic
-                        If candidate.Table.Columns.Contains("bsic") AndAlso candidate("bsic") IsNot DBNull.Value Then
-                            Dim bsicVal As Integer
-                            If Integer.TryParse(candidate("bsic").ToString(), bsicVal) Then
-                                newRow("bsic") = bsicVal
-                            Else
-                                newRow("bsic") = DBNull.Value
-                            End If
-                        Else
-                            newRow("bsic") = DBNull.Value
-                        End If
-                    Else
-                        ' no candidate: keep default band and leave rest empty
-                        newRow("mcc") = DBNull.Value
-                        newRow("mnc") = DBNull.Value
-                        newRow("arfcn") = DBNull.Value
-                        newRow("gsm_id") = DBNull.Value
-                        newRow("cell_id") = DBNull.Value
-                        newRow("bsic") = DBNull.Value
+                        For Each arfcn In parsed
+                            allArfcns.Add(Tuple.Create(arfcn, plmnStr, gsmId))
+                        Next
                     End If
+                Next
 
-                    result.Rows.Add(newRow)
+                Dim ranked900 = allArfcns.GroupBy(Function(x) x.Item1) _
+                .Where(Function(g) g.Key >= 1 AndAlso g.Key <= 124) _
+                .Select(Function(g) New With {
+                    .Arfcn = g.Key,
+                    .Count = g.Count(),
+                    .Plmn = g.First().Item2,
+                    .Band = "GSM 900",
+                    .GsmId = g.First().Item3
+                }) _
+                .OrderByDescending(Function(x) x.Count) _
+                .ThenBy(Function(x) x.Arfcn) _
+                .Take(2) _
+                .ToList()
+
+                Dim ranked1800 = allArfcns.GroupBy(Function(x) x.Item1) _
+                .Where(Function(g) g.Key >= 512 AndAlso g.Key <= 885) _
+                .Select(Function(g) New With {
+                    .Arfcn = g.Key,
+                    .Count = g.Count(),
+                    .Plmn = g.First().Item2,
+                    .Band = "GSM 1800",
+                    .GsmId = g.First().Item3
+                }) _
+                .OrderByDescending(Function(x) x.Count) _
+                .ThenBy(Function(x) x.Arfcn) _
+                .Take(2) _
+                .ToList()
+
+                Dim finalRanked = ranked900.Concat(ranked1800).Take(4).ToList()
+
+                Dim rankCounter As Integer = 1
+                For Each entry In finalRanked
+                    Dim r = result.NewRow()
+                    r("rank") = rankCounter
+                    r("plmn") = entry.Plmn
+                    r("band") = entry.Band
+                    r("channel") = entry.Arfcn
+                    r("gsmId") = entry.GsmId
+                    result.Rows.Add(r)
+                    rankCounter += 1
                 Next
 
                 DataGridView1.DataSource = result
-
-                ' Configure columns exactly as requested
                 DataGridView1.AutoGenerateColumns = False
                 DataGridView1.Columns.Clear()
 
-                Dim colChannel As New DataGridViewTextBoxColumn()
-                colChannel.Name = "channel"
-                colChannel.HeaderText = "CHANNEL"
-                colChannel.DataPropertyName = "channel"
-                colChannel.ReadOnly = True
-                colChannel.Width = 60
-                DataGridView1.Columns.Add(colChannel)
+                Dim colRank As New DataGridViewTextBoxColumn() With {.Name = "rank", .HeaderText = "RANK", .DataPropertyName = "rank", .Width = 60}
+                Dim colPlmn As New DataGridViewTextBoxColumn() With {.Name = "plmn", .HeaderText = "PLMN", .DataPropertyName = "plmn", .Width = 100}
+                Dim colBand As New DataGridViewTextBoxColumn() With {.Name = "band", .HeaderText = "BAND", .DataPropertyName = "band", .Width = 150}
+                Dim colChannel As New DataGridViewTextBoxColumn() With {.Name = "channel", .HeaderText = "CHANNEL", .DataPropertyName = "channel", .Width = 100}
 
-                Dim colMcc As New DataGridViewTextBoxColumn()
-                colMcc.Name = "mcc"
-                colMcc.HeaderText = "MCC"
-                colMcc.DataPropertyName = "mcc"
-                colMcc.Width = 80
-                DataGridView1.Columns.Add(colMcc)
+                Dim colChosenCh As New DataGridViewTextBoxColumn() With {
+                    .Name = "chosenCh",
+                    .HeaderText = "Chosen Channel",
+                    .DataPropertyName = "chosenCh",
+                    .Visible = False
+                }
 
-                Dim colMnc As New DataGridViewTextBoxColumn()
-                colMnc.Name = "mnc"
-                colMnc.HeaderText = "MNC"
-                colMnc.DataPropertyName = "mnc"
-                colMnc.Width = 80
-                DataGridView1.Columns.Add(colMnc)
+                Dim gsmIdCh As New DataGridViewTextBoxColumn() With {
+                    .Name = "gsmId",
+                    .HeaderText = "Gsm Id",
+                    .DataPropertyName = "gsmId",
+                    .Visible = False
+                }
 
-                Dim colBand As New DataGridViewTextBoxColumn()
-                colBand.Name = "band"
-                colBand.HeaderText = "BAND"
-                colBand.DataPropertyName = "band"
-                colBand.Width = 180
-                DataGridView1.Columns.Add(colBand)
+                DataGridView1.Columns.AddRange({colRank, colPlmn, colBand, colChannel, colChosenCh, gsmIdCh})
 
-                Dim colArfcn As New DataGridViewTextBoxColumn()
-                colArfcn.Name = "arfcn"
-                colArfcn.HeaderText = "ARFCN"
-                colArfcn.DataPropertyName = "arfcn"
-                colArfcn.Width = 100
-                DataGridView1.Columns.Add(colArfcn)
-
-                Dim colBsic As New DataGridViewTextBoxColumn()
-                colBsic.Name = "bsic"
-                colBsic.HeaderText = "BSIC"
-                colBsic.DataPropertyName = "bsic"
-                colBsic.Width = 80
-                DataGridView1.Columns.Add(colBsic)
-
-                ' Hidden helpers
-                Dim colGsmId As New DataGridViewTextBoxColumn()
-                colGsmId.Name = "gsm_id"
-                colGsmId.DataPropertyName = "gsm_id"
-                colGsmId.Visible = False
-                DataGridView1.Columns.Add(colGsmId)
-
-                Dim colCellId As New DataGridViewTextBoxColumn()
-                colCellId.Name = "cell_id"
-                colCellId.DataPropertyName = "cell_id"
-                colCellId.Visible = False
-                DataGridView1.Columns.Add(colCellId)
-
-                ' Apply button column (per-row, we will set enable state per cell)
-                Dim applyColumn As New DataGridViewButtonColumn()
-                applyColumn.Name = "apply"
-                applyColumn.HeaderText = "Apply Choice"
-                applyColumn.Text = "Apply"
-                applyColumn.UseColumnTextForButtonValue = False
-                applyColumn.Width = 90
+                Dim applyColumn As New DataGridViewButtonColumn() With {
+                    .Name = "apply",
+                    .HeaderText = "Apply Choice",
+                    .UseColumnTextForButtonValue = False,
+                    .Width = 120
+                }
                 applyColumn.DefaultCellStyle.BackColor = Color.Green
                 applyColumn.DefaultCellStyle.ForeColor = Color.White
                 DataGridView1.Columns.Add(applyColumn)
 
                 DataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-
                 UpdateApplyButtonsState()
             End Using
         Catch ex As Exception
-            MessageBox.Show("Error loading GSM channels: " & ex.Message)
+            Console.WriteLine("Error loading GSM channels: " & ex.StackTrace)
         End Try
     End Sub
 
-    Private Function ChannelDefaultBand(channel As Integer) As String
+
+    Private Function GsmChannelDefaultBand(channel As Integer) As String
         Select Case channel
-            Case 1, 2
-                Return "GSM 900"
-            Case 3, 4
-                Return "GSM 1800"
-            Case 5, 6
-                Return "GSM 1900"
-            Case 7, 8
-                Return "GSM 850"
-            Case 9
-                Return "GSM 450"
-            Case 10
-                Return "GSM 480"
-            Case 11, 12
-                Return "GSM 750"
-            Case 13, 14
-                Return "GSM 380"
-            Case Else
-                Return "Unknown GSM"
+            Case 1, 2 : Return "GSM 900"
+            Case 3, 4 : Return "GSM 1800"
+            Case Else : Return "Unknown"
         End Select
     End Function
 
-    ' ---------------------------
-    ' Map band string to channel numbers (list)
-    ' ---------------------------
-    Private Function ChannelNumbersForBand(ByVal band As String) As List(Of Integer)
-        Dim result As New List(Of Integer)()
-        If String.IsNullOrWhiteSpace(band) Then Return result
-
-        Dim bandLower = band.ToLowerInvariant()
-
-        If bandLower.Contains("900") Then
-            result.Add(1) : result.Add(2)
-        ElseIf bandLower.Contains("1800") Then
-            result.Add(3) : result.Add(4)
-        ElseIf bandLower.Contains("1900") Then
-            result.Add(5) : result.Add(6)
-        ElseIf bandLower.Contains("850") Then
-            result.Add(7) : result.Add(8)
-        ElseIf bandLower.Contains("450") Then
-            result.Add(9)
-        ElseIf bandLower.Contains("480") Then
-            result.Add(10)
-        ElseIf bandLower.Contains("750") Then
-            result.Add(11) : result.Add(12)
-        ElseIf bandLower.Contains("380") Then
-            result.Add(13) : result.Add(14)
-        ElseIf bandLower.Contains("gsm") Then
-            ' Default mapping for generic GSM
-            result.Add(1) : result.Add(2) : result.Add(3) : result.Add(4)
+    Private Function MapArfcnToBand(arfcn As Integer) As String
+        If arfcn >= 1 AndAlso arfcn <= 124 Then
+            Return "GSM 900"
+        ElseIf arfcn >= 512 AndAlso arfcn <= 885 Then
+            Return "GSM 1800"
+        Else
+            Return "Unknown"
         End If
-
-        Return result
     End Function
 
-    ' ---------------------------
-    ' Update per-row Apply button state and colors
-    ' ---------------------------
+    Private Function ChannelsForGsmBand(band As String) As Integer()
+        Select Case band
+            Case "GSM 900" : Return {1, 2}
+            Case "GSM 1800" : Return {3, 4}
+            Case Else : Return Array.Empty(Of Integer)()
+        End Select
+    End Function
+
     Private Sub UpdateApplyButtonsState()
+        Dim usedCh As New HashSet(Of Integer)
+
         For Each row As DataGridViewRow In DataGridView1.Rows
             If row.IsNewRow Then Continue For
 
             Dim btnCell = TryCast(row.Cells("apply"), DataGridViewButtonCell)
             If btnCell Is Nothing Then Continue For
 
-            Dim arfcnObj = row.Cells("arfcn").Value
+            Dim bandObj = row.Cells("band").Value
+            Dim targetCh() As Integer = ChannelsForGsmBand(bandObj?.ToString())
 
-            If arfcnObj Is Nothing OrElse String.IsNullOrWhiteSpace(arfcnObj.ToString()) Then
-                ' disable
-                btnCell.Value = "" ' hide text
-                btnCell.Style.BackColor = Color.LightGray
-                btnCell.Style.ForeColor = Color.DarkGray
+            If targetCh.Length = 0 Then
+                btnCell.Value = "N/A"
+                btnCell.Style.BackColor = Color.Gray
+                btnCell.Style.ForeColor = Color.White
+                Continue For
+            End If
+
+            Dim chosenCh As Integer = targetCh.FirstOrDefault(Function(c) Not usedCh.Contains(c))
+
+            If chosenCh > 0 Then
+                btnCell.Value = $"Apply to Ch{chosenCh}"
+                btnCell.Style.BackColor = Color.Green
+                btnCell.Style.ForeColor = Color.White
+                usedCh.Add(chosenCh)
+                row.Cells("chosenCh").Value = chosenCh
             Else
-                ' enable
-                btnCell.Value = "Apply"
-                btnCell.Style.ForeColor = Color.Green
+                btnCell.Value = "N/A"
+                btnCell.Style.BackColor = Color.Gray
+                btnCell.Style.ForeColor = Color.White
+                row.Cells("chosenCh").Value = DBNull.Value
             End If
         Next
     End Sub
 
-    ' ---------------------------
-    ' DataGridView events
-    ' ---------------------------
+
     Private Sub DataGridView1_CurrentCellDirtyStateChanged(sender As Object, e As EventArgs)
         If DataGridView1.IsCurrentCellDirty Then
             DataGridView1.CommitEdit(DataGridViewDataErrorContexts.Commit)
@@ -321,7 +250,6 @@ Public Class Form6
 
     Private Sub DataGridView1_CellValueChanged(sender As Object, e As DataGridViewCellEventArgs)
         If e.RowIndex >= 0 Then
-            ' If ARFCN or band changed - refresh apply states for that row
             If DataGridView1.Columns(e.ColumnIndex).Name = "arfcn" OrElse DataGridView1.Columns(e.ColumnIndex).Name = "band" Then
                 UpdateApplyButtonsState()
             End If
@@ -333,7 +261,6 @@ Public Class Form6
         If DataGridView1.Columns(e.ColumnIndex).Name = "apply" Then
             Dim btnCell = CType(DataGridView1.Rows(e.RowIndex).Cells("apply"), DataGridViewButtonCell)
             If btnCell Is Nothing OrElse btnCell.ReadOnly Then
-                ' disabled -> ignore
                 Return
             End If
 
@@ -341,44 +268,67 @@ Public Class Form6
         End If
     End Sub
 
-    ' ---------------------------
-    ' Apply single row
-    ' ---------------------------
     Private Sub ApplyToBaseStation(rowIndex As Integer)
-        Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
-        Dim channelNumber As Integer = Convert.ToInt32(row.Cells("channel").Value)
+        Try
+            Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
 
-        Dim arfcnObj = row.Cells("arfcn").Value
-        Dim bandObj = row.Cells("band").Value
-        Dim mccObj = row.Cells("mcc").Value
-        Dim mncObj = row.Cells("mnc").Value
-        Dim bsicObj = row.Cells("bsic").Value
-        Dim gsmIdObj = row.Cells("gsm_id").Value
-        Dim cellIdObj = row.Cells("cell_id").Value
+            Dim chosenObj = row.Cells("chosenCh").Value
+            Dim channelNumber As Integer = If(chosenObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(chosenObj.ToString()), Convert.ToInt32(chosenObj), 0)
 
-        If arfcnObj Is Nothing OrElse String.IsNullOrWhiteSpace(arfcnObj.ToString()) Then
-            MessageBox.Show($"Channel {channelNumber} has no candidate ARFCN / band. Nothing to apply.")
-            Return
-        End If
+            Dim gsmId1 As Integer = Convert.ToInt32(row.Cells("gsmId").Value)
 
-        Dim arfcn As Integer = Convert.ToInt32(arfcnObj)
-        Dim mcc As Integer = If(mccObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(mccObj.ToString()), Convert.ToInt32(mccObj), 0)
-        Dim mnc As Integer = If(mncObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(mncObj.ToString()), Convert.ToInt32(mncObj), 0)
-        Dim bsic As Integer = If(bsicObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(bsicObj.ToString()), Convert.ToInt32(bsicObj), 0)
-        Dim band As String = If(bandObj IsNot Nothing, bandObj.ToString(), String.Empty)
-        Dim gsmId As Integer = If(gsmIdObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(gsmIdObj.ToString()), Convert.ToInt32(gsmIdObj), 0)
-        Dim cellId As Long = If(cellIdObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(cellIdObj.ToString()), Convert.ToInt64(cellIdObj), 0L)
+            If gsmId1 <= 0 Then
+                MessageBox.Show("No gsm_id found for this row. Cannot fetch gsm_cells record.")
+                Return
+            End If
 
-        ApplyToChannel(channelNumber, gsmId, arfcn, mcc, mnc, 0, cellId, bsic, band)
+            Dim arfcn As Integer = 0
+            Dim mcc As Integer = 0
+            Dim mnc As Integer = 0
+            Dim lac As Integer = 0
+            Dim cellId As Long = 0L
+            Dim bsic As Integer = 0
+            Dim band As String = String.Empty
 
-        MessageBox.Show($"Applied to channel: {channelNumber}")
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim sql As String = "
+                SELECT gsm_id, plmn, mcc, mnc, arfcn, lac, cell_id, bsic, band, rssi, [Timestamp]
+                FROM gsm_cells
+                WHERE gsm_id = @gsmId
+            "
+                Using cmd As New SqlCommand(sql, conn)
+                    cmd.Parameters.AddWithValue("@gsmId", gsmId1)
 
-        UpdateApplyButtonsState()
+                    Using rdr As SqlDataReader = cmd.ExecuteReader()
+                        If rdr.Read() Then
+                            If Not rdr.IsDBNull(rdr.GetOrdinal("mcc")) Then mcc = Convert.ToInt32(rdr("mcc"))
+                            If Not rdr.IsDBNull(rdr.GetOrdinal("mnc")) Then mnc = Convert.ToInt32(rdr("mnc"))
+                            If Not rdr.IsDBNull(rdr.GetOrdinal("lac")) Then lac = Convert.ToInt32(rdr("lac"))
+                            If Not rdr.IsDBNull(rdr.GetOrdinal("cell_id")) Then cellId = Convert.ToInt64(rdr("cell_id"))
+                            If Not rdr.IsDBNull(rdr.GetOrdinal("bsic")) Then bsic = Convert.ToInt32(rdr("bsic"))
+                            If Not rdr.IsDBNull(rdr.GetOrdinal("band")) Then band = rdr("band").ToString()
+                        Else
+                            MessageBox.Show($"No gsm_cells record found for gsm_id = {gsmId1}.")
+                            Return
+                        End If
+                    End Using
+                End Using
+            End Using
+
+            Dim arfcnObj = row.Cells("channel").Value
+            arfcn = Convert.ToInt32(arfcnObj)
+
+            ApplyToChannel(channelNumber, gsmId1, arfcn, mcc, mnc, lac, cellId, bsic, band)
+
+            MessageBox.Show($"Applied to channel: {channelNumber} (gsm_id={gsmId1})")
+            UpdateApplyButtonsState()
+        Catch ex As Exception
+            Console.WriteLine("Error applying to base station: " & ex.Message)
+        End Try
     End Sub
 
-    ' ---------------------------
-    ' Apply DB write (insert/update) -> stores numeric MHz for band
-    ' ---------------------------
+
     Private Sub ApplyToChannel(channelNumber As Integer, gsmId As Integer, arfcn As Integer,
                               mcc As Integer, mnc As Integer, lac As Integer, cellId As Long, bsic As Integer, band As String)
         Try
@@ -393,18 +343,17 @@ Public Class Form6
                     exists = Convert.ToInt32(checkCmd.ExecuteScalar())
                 End Using
 
-                ' Convert band string (e.g. "GSM 900") to integer MHz (900)
                 Dim bandMHz As Integer = ExtractBandMHz(band)
 
                 If exists > 0 Then
-                    Dim updateQuery As String = "UPDATE base_stations SET gsm_id = @gsmId, arfcn = @arfcn, 
+                    Dim updateQuery As String = "UPDATE base_stations SET gsm_id = @gsmId, earfcn = @earfcn, 
                                               mcc = @mcc, mnc = @mnc, lac = @lac, cid = @cellId, 
                                               bsic = @bsic, band = @band, is_gsm = 1, last_updated = SYSUTCDATETIME()
                                               WHERE channel_number = @channelNumber"
 
                     Using updateCmd As New SqlCommand(updateQuery, connection)
                         updateCmd.Parameters.AddWithValue("@gsmId", gsmId)
-                        updateCmd.Parameters.AddWithValue("@arfcn", arfcn)
+                        updateCmd.Parameters.AddWithValue("@earfcn", arfcn)
                         updateCmd.Parameters.AddWithValue("@mcc", mcc)
                         updateCmd.Parameters.AddWithValue("@mnc", mnc)
                         updateCmd.Parameters.AddWithValue("@lac", lac)
@@ -424,13 +373,13 @@ Public Class Form6
                 Else
                     Dim insertQuery As String = "INSERT INTO base_stations (channel_number, is_gsm, gsm_id, 
                                               arfcn, mcc, mnc, lac, cid, bsic, band, last_updated)
-                                              VALUES (@channelNumber, 1, @gsmId, @arfcn, @mcc, @mnc, 
+                                              VALUES (@channelNumber, 1, @gsmId, @earfcn, @mcc, @mnc, 
                                               @lac, @cellId, @bsic, @band, SYSUTCDATETIME())"
 
                     Using insertCmd As New SqlCommand(insertQuery, connection)
                         insertCmd.Parameters.AddWithValue("@channelNumber", channelNumber)
                         insertCmd.Parameters.AddWithValue("@gsmId", gsmId)
-                        insertCmd.Parameters.AddWithValue("@arfcn", arfcn)
+                        insertCmd.Parameters.AddWithValue("@earfcn", arfcn)
                         insertCmd.Parameters.AddWithValue("@mcc", mcc)
                         insertCmd.Parameters.AddWithValue("@mnc", mnc)
                         insertCmd.Parameters.AddWithValue("@lac", lac)
@@ -468,7 +417,6 @@ Public Class Form6
     Private Function ExtractBandMHz(band As String) As Integer
         If String.IsNullOrWhiteSpace(band) Then Return 0
 
-        ' look for explicit numbers in GSM band names
         Dim m As Match = Regex.Match(band, "(\d{3,4})")
         Dim value As Integer
         If m.Success AndAlso Integer.TryParse(m.Groups(1).Value, value) Then
@@ -481,7 +429,7 @@ Public Class Form6
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         For Each row As DataGridViewRow In DataGridView1.Rows
             If Not row.IsNewRow Then
-                If row.Cells("arfcn").Value IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(row.Cells("arfcn").Value.ToString()) Then
+                If row.Cells("channel").Value IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(row.Cells("channel").Value.ToString()) Then
                     ApplyToBaseStation(row.Index)
                 End If
             End If

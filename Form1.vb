@@ -25,9 +25,6 @@ Public Class Form1
     Private udpClientLteWcdma As UdpClient
     Private udpClientGsm As UdpClient
     Private receivingThread As Thread
-    Private isListening As Boolean
-    Private lteWcdmaEndpoint As IPEndPoint
-    Private gsmEndpoint As IPEndPoint
     Private analyzingGsm As Boolean
     Private analyzingLteWcdma As Boolean
     Private progressPanel As Panel
@@ -38,12 +35,17 @@ Public Class Form1
     Private refreshIcon As Bitmap
     Private isRefreshing As Boolean = False
     Private refreshBtn As New Button
+    Private listenerRunning As Boolean = False
+    Private listenerTask As Task
+    'UDP CLIENTS
+    Private udpClients As New Dictionary(Of String, UdpClient)
+    Private listener As UdpClient
+    Private isListening As Boolean = False
+    Private udp As UdpClient
+    Private operatorFilter As List(Of String)
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
-            isListening = False
-            lteWcdmaEndpoint = New IPEndPoint(IPAddress.Parse("192.168.1.99"), 9001)
-            gsmEndpoint = New IPEndPoint(IPAddress.Parse("192.168.1.100"), 9001)
             analyzingGsm = False
             InitializeEditModeButtons()
             InitializeProgressIndicator()
@@ -52,7 +54,6 @@ Public Class Form1
             Await dbInitializer.EnsureDatabaseExistsAsync()
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
-            connectToAnalyzerBoard()
             disableAllBtns()
             LoadDataToGridViews()
             LoadBaseStationData()
@@ -80,10 +81,60 @@ Public Class Form1
             StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
 
+            StartUdpListener()
 
             Task.Run(Sub() UpdateButtonColors())
         Catch ex As Exception
             MessageBox.Show("Database setup failed: " & ex.StackTrace, "Error")
+        End Try
+    End Sub
+
+    Private Function GetOrCreateClient(address As String) As UdpClient
+        If Not udpClients.ContainsKey(address) Then
+            udpClients(address) = New UdpClient()
+        End If
+        Return udpClients(address)
+    End Function
+
+    Private Async Sub StartCellOperation(address As String, button As Button)
+        button.Enabled = False
+
+        Try
+            Dim udp = GetOrCreateClient(address)
+            Dim remoteEP As New IPEndPoint(IPAddress.Parse(address), 9001)
+
+            Dim command As String = "StartCell"
+            Dim data As Byte() = Encoding.ASCII.GetBytes(command)
+            Await udp.SendAsync(data, data.Length, remoteEP)
+
+        Catch ex As Exception
+            Console.WriteLine($"Error communicating with {address}: {ex.Message}")
+        Finally
+            button.Enabled = True
+            button.Text = "Start"
+        End Try
+    End Sub
+
+    Private Async Sub StopCellOperation(address As String, button As Button)
+        Dim originalText As String = button.Text
+
+        Try
+            Dim udp = GetOrCreateClient(address)
+            Dim remoteEP As New IPEndPoint(IPAddress.Parse(address), 9001)
+
+            Dim command As String = "StopCell"
+            Dim data As Byte() = Encoding.ASCII.GetBytes(command)
+            Await udp.SendAsync(data, data.Length, remoteEP)
+
+        Catch ex As SocketException
+            MessageBox.Show($"Could not connect to cell at {address}. Please check the connection.", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Catch ex As TimeoutException
+            MessageBox.Show($"Timeout while communicating with cell at {address}.", "Timeout Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        Catch ex As Exception
+            MessageBox.Show($"Error stopping cell at {address}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            button.Enabled = True
+            button.Text = originalText
         End Try
     End Sub
 
@@ -260,21 +311,41 @@ Public Class Form1
         StartChannelAnalyzer()
     End Sub
 
-    Private Sub connectToAnalyzerBoard()
-        Try
-            Dim localEndpoint1 As New IPEndPoint(IPAddress.Any, 0)
-            Dim localEndpoint2 As New IPEndPoint(IPAddress.Any, 0)
+    Private Sub StartUdpListener()
+        If listenerRunning Then Return
 
-            udpClientLteWcdma = New UdpClient(localEndpoint1)
-            udpClientGsm = New UdpClient(localEndpoint2)
+        udp = New UdpClient(New IPEndPoint(IPAddress.Any, 9001))
 
-            udpClientGsm.Connect(gsmEndpoint)
-            udpClientLteWcdma.Connect(lteWcdmaEndpoint)
+        listenerRunning = True
+        listenerTask = Task.Run(
+        Async Function()
 
-            Console.WriteLine("Connected to analyzer boards successfully")
-        Catch ex As Exception
-            Console.WriteLine("Error occurred while connecting to boards: " & ex.Message)
-        End Try
+            While listenerRunning
+                Try
+                    Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
+                    Dim response As String = Encoding.ASCII.GetString(result.Buffer)
+                    Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
+
+                    If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
+                        Me.Invoke(Sub()
+                                      processResponse(response)
+                                  End Sub)
+                    End If
+
+                Catch ex As Exception
+                    If listenerRunning Then
+                        Me.Invoke(Sub()
+                                      Console.WriteLine("Listener error: " & ex.Message)
+                                  End Sub)
+                    End If
+                End Try
+            End While
+        End Function)
+    End Sub
+
+
+    Private Sub StopUdpListener()
+        listenerRunning = False
     End Sub
 
     Private Sub StartChannelAnalyzer()
@@ -284,41 +355,55 @@ Public Class Form1
         ShowProgressIndicator()
         progressBar.Visible = True
         ClearChannelsData()
+
         Try
-            Dim command As String = "StartSniffer"
-            Dim commandBytes As Byte() = Encoding.ASCII.GetBytes(command)
-
-            If udpClientLteWcdma IsNot Nothing Then
-                udpClientLteWcdma.Send(commandBytes, commandBytes.Length)
-            Else
-                progressLabel.Text = "Could not connect to lte/wcdma board"
-            End If
-
-            If udpClientGsm IsNot Nothing Then
-                udpClientGsm.Send(commandBytes, commandBytes.Length)
-            Else
-                progressLabel.Text = "Could not connect to gsm board"
-            End If
-
-            If udpClientLteWcdma Is Nothing AndAlso udpClientGsm Is Nothing Then
-                Throw New InvalidOperationException("Both LTE/WCDMA and GSM boards did not connect. Try again.")
-            End If
-
-            isListening = True
-            receivingThread = New Thread(AddressOf ReceiveData)
-            receivingThread.IsBackground = True
-            receivingThread.Start()
+            Dim bytes = Encoding.ASCII.GetBytes("StartSniffer")
+            udp.Send(bytes, bytes.Length, "192.168.1.99", 9001)
+            udp.Send(bytes, bytes.Length, "192.168.1.100", 9001)
 
             PictureBox15.BackColor = Color.Green
             PictureBox16.BackColor = Color.Green
             PictureBox17.BackColor = Color.Green
 
+            Console.WriteLine("StartSniffer requests sent.")
         Catch ex As Exception
             progressBar.Visible = False
-            progressLabel.Text = "Error Connecting to all boards. try again"
+            progressLabel.Text = "Error Connecting to boards. Try again."
             Button1.Enabled = True
         End Try
     End Sub
+
+
+    Private Sub processResponse(response As String)
+        Try
+            If response.IndexOf("StartSniffer", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                Console.WriteLine("StartSniffer → " & response)
+                Return
+            End If
+
+            If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                ProcessGsmData(response)
+                Return
+            End If
+
+            If response.IndexOf("LteSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                ProcessLteData(response)
+                Return
+            End If
+
+            If response.IndexOf("WCDMA", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                ProcessWcdmaData(response)
+                Return
+            End If
+
+
+        Catch ex As Exception
+            Console.WriteLine("Error while processing response: " & ex.Message)
+        End Try
+    End Sub
+
+
+
 
     Private Sub ShowProgressIndicator()
         If Me.InvokeRequired Then
@@ -401,22 +486,6 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub StopChannelAnalyzer()
-        ShowProgressIndicator()
-        progressLabel.Text = "Stopping channel anaalyzer"
-        Try
-            Dim command As String = "RebootAndStartSniffer"
-            Dim commandBytes As Byte() = Encoding.ASCII.GetBytes(command)
-
-            udpClientLteWcdma.Send(commandBytes, commandBytes.Length)
-            udpClientGsm.Send(commandBytes, commandBytes.Length)
-
-            progressLabel.Text = "Channel analyzer rebooting"
-        Catch ex As Exception
-            MessageBox.Show("Error stopping channel analyzer: " & ex.Message)
-        End Try
-    End Sub
-
     Private Sub SafeUpdateLabel(text As String)
         If progressLabel.InvokeRequired Then
             progressLabel.Invoke(Sub() progressLabel.Text = text)
@@ -433,38 +502,6 @@ Public Class Form1
         End If
     End Sub
 
-
-    Private Sub ReceiveData()
-        Dim remoteEP As New IPEndPoint(IPAddress.Any, 0)
-
-        While isListening
-            Try
-                If udpClientLteWcdma.Available > 0 Then
-                    Dim receiveBytes As Byte() = udpClientLteWcdma.Receive(remoteEP)
-                    Dim response As String = Encoding.UTF8.GetString(receiveBytes)
-                    ProcessLteWcdmaData(response)
-
-                End If
-
-                udpClientGsm.Connect(gsmEndpoint)
-                If udpClientGsm.Available > 0 Then
-                    Dim remoteEP1 As New IPEndPoint(IPAddress.Any, 0)
-                    Dim receiveBytes As Byte() = udpClientGsm.Receive(remoteEP1)
-                    Dim response As String = Encoding.UTF8.GetString(receiveBytes)
-                    SafeUpdateLabel(response.Substring(0, 20))
-                    ProcessGsmData(response)
-
-                End If
-
-            Catch ex As Exception
-                SafeUpdateProgressBar(False)
-                progressLabel.Text = "Error occured, try again"
-                If isListening Then
-                    Console.WriteLine("Error receiving data: " & ex.Message)
-                End If
-            End Try
-        End While
-    End Sub
 
     Private Sub ProcessLteWcdmaData(data As String)
 
@@ -484,7 +521,7 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessGsmData(line As String)
-        SafeUpdateLabel("Analyzing channels : Gsm : " & line)
+        SafeUpdateLabel(line)
         Try
             Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
             Dim lacMatch As Match = Regex.Match(line, "lac\[(\d+)\]")
@@ -498,10 +535,16 @@ Public Class Form1
                 Dim plmn As String = plmnMatch.Groups(1).Value
                 Dim mcc As Integer = 0
                 Dim mnc As Integer = 0
+
+                If plmn = "51000" Then
+                    plmn = "51028"
+                End If
+
                 If plmn.Length >= 5 Then
                     Integer.TryParse(plmn.Substring(0, 3), mcc)
                     Integer.TryParse(plmn.Substring(3), mnc)
                 End If
+
 
                 Dim lac As Integer = If(lacMatch.Success, Integer.Parse(lacMatch.Groups(1).Value), 0)
                 Dim cellId As Long = Long.Parse(cidMatch.Groups(1).Value)
@@ -512,12 +555,22 @@ Public Class Form1
                 Dim providerName As String = GetOperatorCodeByPLMN(plmn)
                 Dim band As String = GetBand(arfcn)
 
-                Dim nbFreq As String = If(nbFreqMatch.Success, nbFreqMatch.Groups(1).Value.Trim(), "")
+                Dim nbFreq As String = If(nbFreqMatch.Success, "[" & nbFreqMatch.Groups(1).Value.Trim() & "]", "[]")
 
                 InsertGsmData(providerName, plmn, mcc, mnc, band, arfcn, lac, nbFreq, cellId, bsic, rssi)
                 UpdateGsmDataGridView(providerName, plmn, mcc, mnc, band, arfcn, lac, nbFreq, cellId, bsic)
             Else
-                Debug.WriteLine("GSM line skipped (no PLMN or CID): " & line)
+                If line.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
+                    line.IndexOf("[-1]", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                    analyzingGsm = False
+                    PictureBox15.BackColor = Color.Red
+                    If Not analyzingLteWcdma AndAlso Not analyzingGsm Then
+                        SafeUpdateProgressBar(False)
+                        SafeUpdateLabel("Analysis complete.")
+                        Button1.Enabled = True
+                    End If
+                End If
+
             End If
 
         Catch ex As Exception
@@ -539,16 +592,19 @@ Public Class Form1
             Dim nbFreqMatch As Match = Regex.Match(line, "nbFreq\[(.*)\]")
 
             If plmnMatch.Success AndAlso cidMatch.Success Then
-                ' Parse PLMN safely
                 Dim plmn As String = plmnMatch.Groups(1).Value
                 Dim mcc As Integer = 0
                 Dim mnc As Integer = 0
+
+                If plmn = "51000" Then
+                    plmn = "51028"
+                End If
+
                 If plmn.Length >= 5 Then
                     Integer.TryParse(plmn.Substring(0, 3), mcc)
                     Integer.TryParse(plmn.Substring(3), mnc)
                 End If
 
-                ' Parse other numeric fields safely
                 Dim tac As Integer = If(tacMatch.Success, Integer.Parse(tacMatch.Groups(1).Value), 0)
                 Dim cellId As Long = Long.Parse(cidMatch.Groups(1).Value)
                 Dim earfcn As Integer = If(fcnMatch.Success, Integer.Parse(fcnMatch.Groups(1).Value), 0)
@@ -559,7 +615,6 @@ Public Class Form1
                 Dim providerName As String = GetOperatorCodeByPLMN(plmn)
                 Dim band As String = GetBand(earfcn)
 
-                ' nbEarfcn as raw string
                 Dim raw As String = If(nbFreqMatch.Success, nbFreqMatch.Groups(1).Value.Trim(), "")
                 Dim nbEarfcn As String = raw.Replace(" measured[", "")
                 If Not nbEarfcn.StartsWith("[[") Then
@@ -568,11 +623,25 @@ Public Class Form1
 
                 Console.WriteLine("nbFreq: " & nbEarfcn)
 
-                ' Insert/update
                 InsertLteData(providerName, plmn, mcc, mnc, band, pri, earfcn, nbEarfcn, tac, cellId, rsrp)
                 UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pri, earfcn, nbEarfcn, tac, cellId, rsrp)
             Else
-                Debug.WriteLine("LTE line skipped (no PLMN or CID): " & line)
+                If line.IndexOf("LteSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
+                   line.IndexOf("SNIFER", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
+                   line.IndexOf("SNIFFER240", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
+                   line.IndexOf("[-1]", StringComparison.OrdinalIgnoreCase) >= 0 Then
+
+                    analyzingLteWcdma = False
+
+                    PictureBox16.BackColor = Color.Red
+                    PictureBox17.BackColor = Color.Red
+
+                    If Not analyzingLteWcdma AndAlso Not analyzingGsm Then
+                        SafeUpdateLabel("Analysis complete.")
+                        Button1.Enabled = True
+                    End If
+
+                End If
             End If
 
         Catch ex As Exception
@@ -652,7 +721,7 @@ Public Class Form1
     End Sub
 
     Private Sub InsertGsmData(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
-                             band As String, arfcn As Integer, lac As Integer, nbCell As Integer,
+                             band As String, arfcn As Integer, lac As Integer, nbCell As String,
                              cellId As Long, bsic As Byte, rssi As Double)
         Using connection As New SqlConnection(connectionString)
             connection.Open()
@@ -731,36 +800,53 @@ Public Class Form1
     End Sub
 
     Private Sub UpdateGsmDataGridView(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
-                                     band As String, arfcn As Integer, lac As Integer, nbCell As Integer,
-                                     cellId As Long, bsic As Byte)
+                                  band As String, arfcn As Integer, lac As Integer, nbCell As String,
+                                  cellId As Long, bsic As Byte)
+
         If DataGridView1.InvokeRequired Then
             DataGridView1.Invoke(Sub() UpdateGsmDataGridView(providerName, plmn, mcc, mnc, band, arfcn, lac, nbCell, cellId, bsic))
-        Else
-            Dim rowIndex As Integer = -1
-
-            For i As Integer = 0 To DataGridView1.Rows.Count - 1
-                If DataGridView1.Rows(i).Cells("Column10").Value.ToString() = cellId.ToString() Then
-                    rowIndex = i
-                    Exit For
-                End If
-            Next
-
-            If rowIndex = -1 Then
-                rowIndex = DataGridView1.Rows.Add()
-            End If
-
-            DataGridView1.Rows(rowIndex).Cells("Column5").Value = providerName
-            DataGridView1.Rows(rowIndex).Cells("Column6").Value = plmn
-            DataGridView1.Rows(rowIndex).Cells("Column14").Value = mcc
-            DataGridView1.Rows(rowIndex).Cells("Column15").Value = mnc
-            DataGridView1.Rows(rowIndex).Cells("Column7").Value = band
-            DataGridView1.Rows(rowIndex).Cells("Column9").Value = arfcn
-            DataGridView1.Rows(rowIndex).Cells("Column12").Value = lac
-            DataGridView1.Rows(rowIndex).Cells("Column13").Value = nbCell
-            DataGridView1.Rows(rowIndex).Cells("Column10").Value = cellId
-            DataGridView1.Rows(rowIndex).Cells("Column11").Value = bsic
+            Return
         End If
+
+        Dim dt As DataTable = TryCast(DataGridView1.DataSource, DataTable)
+        If dt Is Nothing Then
+            MessageBox.Show("DataGridView1 is not bound to a DataTable!")
+            Return
+        End If
+
+        For Each colName In {"providerName", "plmn", "mcc", "mnc", "band", "arfcn", "lac", "nb_cell", "cell_id", "bsic"}
+            If dt.Columns.Contains(colName) = False Then
+                dt.Columns.Add(colName, GetType(String))
+            ElseIf dt.Columns(colName).DataType IsNot GetType(String) Then
+                Dim newColName = colName & "_str"
+                dt.Columns.Add(newColName, GetType(String))
+                For Each row2 As DataRow In dt.Rows
+                    row2(newColName) = row2(colName).ToString()
+                Next
+                dt.Columns.Remove(colName)
+                dt.Columns(newColName).ColumnName = colName
+            End If
+        Next
+
+        Dim row As DataRow = dt.Rows.Cast(Of DataRow)().FirstOrDefault(Function(r) r("cell_id").ToString() = cellId.ToString())
+        If row Is Nothing Then
+            row = dt.NewRow()
+            dt.Rows.Add(row)
+        End If
+
+        row("providerName") = If(String.IsNullOrEmpty(providerName), String.Empty, providerName)
+        row("plmn") = If(String.IsNullOrEmpty(plmn), String.Empty, plmn)
+        row("mcc") = mcc.ToString()
+        row("rat") = "GSM"
+        row("mnc") = mnc.ToString()
+        row("band") = If(String.IsNullOrEmpty(band), String.Empty, band)
+        row("arfcn") = arfcn.ToString()
+        row("lac") = lac.ToString()
+        row("nb_cell") = If(String.IsNullOrEmpty(nbCell), String.Empty, nbCell)
+        row("cell_id") = cellId.ToString()
+        row("bsic") = bsic.ToString()
     End Sub
+
 
     Public Sub RefreshBaseStationChannel(channelNumber As Integer)
         If Me.InvokeRequired Then
@@ -862,7 +948,6 @@ Public Class Form1
         Else
             Dim rowIndex As Integer = -1
 
-            ' Search existing row by CellId
             For i As Integer = 0 To DataGridView2.Rows.Count - 1
                 If DataGridView2.Rows(i).Cells("Column10").Value IsNot Nothing AndAlso
                DataGridView2.Rows(i).Cells("Column10").Value.ToString() = cellId.ToString() Then
@@ -871,12 +956,10 @@ Public Class Form1
                 End If
             Next
 
-            ' Add new row if not found
             If rowIndex = -1 Then
                 rowIndex = DataGridView2.Rows.Add()
             End If
 
-            ' Update WCDMA row values
             DataGridView2.Rows(rowIndex).Cells("Column5").Value = providerName
             DataGridView2.Rows(rowIndex).Cells("Column6").Value = plmn
             DataGridView2.Rows(rowIndex).Cells("Column14").Value = mcc
@@ -893,7 +976,11 @@ Public Class Form1
 
 
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
-        StopChannelAnalyzer()
+        Try
+            udp.Close()
+        Catch ex As Exception
+            ' Ignore errors on close
+        End Try
     End Sub
 
     Private Sub TabPage3_Enter(sender As Object, e As EventArgs) Handles TabPage3.Enter
@@ -1559,7 +1646,15 @@ Public Class Form1
     End Sub
 
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-        Form6.Show()
+        Dim f6 As Form6
+
+        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
+            f6 = New Form6()
+        Else
+            f6 = New Form6(operatorFilter)
+        End If
+
+        f6.Show()
     End Sub
 
     Private Sub Chart1_Click(sender As Object, e As EventArgs) Handles Chart1.Click
@@ -1587,8 +1682,17 @@ Public Class Form1
     End Sub
 
     Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
-        Form5.Show()
+        Dim f5 As Form5
+
+        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
+            f5 = New Form5()
+        Else
+            f5 = New Form5(operatorFilter)
+        End If
+
+        f5.Show()
     End Sub
+
 
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
         Form7.Show()
@@ -1835,7 +1939,6 @@ Public Class Form1
         DataGridView1.AutoGenerateColumns = False
         DataGridView1.DataSource = dataTable
 
-        ' Map the columns if needed (optional, since DataPropertyName should handle it)
         DataGridView1.Columns("Column5").DataPropertyName = "ProviderName"
         DataGridView1.Columns("Column6").DataPropertyName = "plmn"
         DataGridView1.Columns("Column14").DataPropertyName = "mcc"
@@ -2752,6 +2855,7 @@ Public Class Form1
             Using command As New SqlCommand(query, connection)
                 command.Parameters.AddWithValue("@ChannelNumber", channelNumber)
 
+
                 Using adapter As New SqlDataAdapter(command)
                     Dim dt As New DataTable()
                     adapter.Fill(dt)
@@ -3295,8 +3399,7 @@ Public Class Form1
     End Sub
 
     Private Sub CheckedListBox1_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles CheckedListBox1.ItemCheck
-        ' Apply filter when items are checked/unchecked
-        ApplyFilter()
+        Me.BeginInvoke(New Action(AddressOf ApplyFilter))
     End Sub
 
     Private Sub ApplyFilter()
@@ -3307,13 +3410,7 @@ Public Class Form1
             End If
         Next
 
-        If selectedItems.Contains("All") Then
-            LoadDataToGridViews()
-        Else
-            FilterDataGridView(DataGridView1, selectedItems)
-            FilterDataGridView(DataGridView2, selectedItems)
-            FilterDataGridView(DataGridView3, selectedItems)
-        End If
+        operatorFilter = selectedItems
     End Sub
 
     Private Sub FilterDataGridView(dgv As DataGridView, filters As List(Of String))
@@ -3325,7 +3422,7 @@ Public Class Form1
                 If Not String.IsNullOrEmpty(filterExpression) Then
                     filterExpression += " OR "
                 End If
-                filterExpression += $"provider_name LIKE '%{filter}%'"
+                filterExpression += $"LCASE(provider_name) LIKE '%{filter.ToLower()}%'"
             Next
 
             If Not String.IsNullOrEmpty(filterExpression) Then
@@ -3335,4 +3432,109 @@ Public Class Form1
             End If
         End If
     End Sub
+
+    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
+        StartCellOperation("192.168.1.90", Button6)
+    End Sub
+
+    Private Sub Button8_Click(sender As Object, e As EventArgs) Handles Button8.Click
+        StartCellOperation("192.168.1.91", Button8)
+    End Sub
+
+    Private Sub Button11_Click(sender As Object, e As EventArgs) Handles Button11.Click
+        StartCellOperation("192.168.1.92", Button11)
+    End Sub
+
+    Private Sub Button13_Click(sender As Object, e As EventArgs) Handles Button13.Click
+        StartCellOperation("192.168.1.93", Button13)
+    End Sub
+
+    Private Sub Button15_Click(sender As Object, e As EventArgs) Handles Button15.Click
+        StartCellOperation("192.168.1.94", Button15)
+    End Sub
+
+    Private Sub Button17_Click(sender As Object, e As EventArgs) Handles Button17.Click
+        StartCellOperation("192.168.1.95", Button17)
+    End Sub
+
+    Private Sub Button19_Click(sender As Object, e As EventArgs) Handles Button19.Click
+        StartCellOperation("192.168.1.96", Button19)
+    End Sub
+
+    Private Sub Button21_Click(sender As Object, e As EventArgs) Handles Button21.Click
+        StartCellOperation("192.168.1.97", Button21)
+    End Sub
+
+    Private Sub Button31_Click(sender As Object, e As EventArgs) Handles Button31.Click
+        StartCellOperation("192.168.1.98", Button31)
+    End Sub
+
+    Private Sub Button23_Click(sender As Object, e As EventArgs) Handles Button23.Click
+        StartCellOperation("192.168.1.101", Button23)
+    End Sub
+
+    Private Sub Button25_Click(sender As Object, e As EventArgs) Handles Button25.Click
+        StartCellOperation("192.168.1.102", Button25)
+    End Sub
+
+    Private Sub Button27_Click(sender As Object, e As EventArgs) Handles Button27.Click
+        StartCellOperation("192.168.1.103", Button27)
+    End Sub
+
+    Private Sub Button29_Click(sender As Object, e As EventArgs) Handles Button29.Click
+        StartCellOperation("192.168.1.104", Button29)
+    End Sub
+
+    Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
+        StopCellOperation("192.168.1.90", Button7)
+    End Sub
+
+    Private Sub Button9_Click(sender As Object, e As EventArgs) Handles Button9.Click
+        StopCellOperation("192.168.1.91", Button9)
+    End Sub
+
+    Private Sub Button12_Click(sender As Object, e As EventArgs) Handles Button12.Click
+        StopCellOperation("192.168.1.92", Button12)
+    End Sub
+
+    Private Sub Button14_Click(sender As Object, e As EventArgs) Handles Button14.Click
+        StopCellOperation("192.168.1.93", Button14)
+    End Sub
+
+    Private Sub Button16_Click(sender As Object, e As EventArgs) Handles Button16.Click
+        StopCellOperation("192.168.1.94", Button16)
+    End Sub
+
+    Private Sub Button18_Click(sender As Object, e As EventArgs) Handles Button18.Click
+        StopCellOperation("192.168.1.95", Button18)
+    End Sub
+
+    Private Sub Button20_Click(sender As Object, e As EventArgs) Handles Button20.Click
+        StopCellOperation("192.168.1.96", Button20)
+    End Sub
+
+    Private Sub Button22_Click(sender As Object, e As EventArgs) Handles Button22.Click
+        StopCellOperation("192.168.1.97", Button22)
+    End Sub
+
+    Private Sub Button32_Click(sender As Object, e As EventArgs) Handles Button32.Click
+        StopCellOperation("192.168.1.98", Button32)
+    End Sub
+
+    Private Sub Button24_Click(sender As Object, e As EventArgs) Handles Button24.Click
+        StopCellOperation("192.168.1.101", Button24)
+    End Sub
+
+    Private Sub Button26_Click(sender As Object, e As EventArgs) Handles Button26.Click
+        StopCellOperation("192.168.1.102", Button26)
+    End Sub
+
+    Private Sub Button28_Click(sender As Object, e As EventArgs) Handles Button28.Click
+        StopCellOperation("192.168.1.103", Button28)
+    End Sub
+
+    Private Sub Button30_Click(sender As Object, e As EventArgs) Handles Button30.Click
+        StopCellOperation("192.168.1.104", Button30)
+    End Sub
+
 End Class
