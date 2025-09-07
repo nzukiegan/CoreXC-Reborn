@@ -206,7 +206,6 @@ Public Class Form6
                 Continue For
             End If
 
-            ' Pick channel with least usage so far
             Dim chosenCh As Integer = targetCh _
             .OrderBy(Function(c)
                          If channelUsage.ContainsKey(c) Then
