@@ -37,7 +37,6 @@ Public Class Form1
     Private refreshBtn As New Button
     Private listenerRunning As Boolean = False
     Private listenerTask As Task
-    'UDP CLIENTS
     Private udpClients As New Dictionary(Of String, UdpClient)
     Private listener As UdpClient
     Private isListening As Boolean = False
@@ -56,9 +55,9 @@ Public Class Form1
             Await dbInitializer.SeedOperatorsAsync()
             disableAllBtns()
             LoadDataToGridViews()
+            ApplyFilterToDataGridViews()
             LoadBaseStationData()
             LoadBaseStationData1()
-            SetupDataGridViewEvents()
             AddInputConstraints()
             AddAdvancedConstraints()
             SetupValidationEvents()
@@ -162,14 +161,13 @@ Public Class Form1
     End Sub
 
     Private Sub pingTimer_Tick(sender As Object, e As EventArgs) Handles pingTimer.Tick
-        ' Run ping checks in background to avoid UI freezing
         Task.Run(Sub() UpdateButtonColors())
     End Sub
 
     Private Function PingHost(ipAddress As String) As Boolean
         Try
             Dim ping As New Ping()
-            Dim reply As PingReply = ping.Send(ipAddress, 1000) ' 1 second timeout
+            Dim reply As PingReply = ping.Send(ipAddress, 1000)
 
             Return reply.Status = IPStatus.Success
         Catch
@@ -178,7 +176,6 @@ Public Class Form1
     End Function
 
     Private Sub UpdateButtonColors()
-        ' Dictionary to map button controls to their corresponding IP addresses
         Dim buttonIpMap As New Dictionary(Of Button, String) From {
         {Button6, "192.168.1.90"},   ' CH1
         {Button8, "192.168.1.91"},   ' CH2
@@ -581,7 +578,6 @@ Public Class Form1
     Private Sub ProcessLteData(line As String)
         SafeUpdateLabel(line)
         Try
-            ' Regex matches
             Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
             Dim tacMatch As Match = Regex.Match(line, "tac\[(\d+)\]")
             Dim cidMatch As Match = Regex.Match(line, "cid\[(\d+)\]")
@@ -845,6 +841,8 @@ Public Class Form1
         row("nb_cell") = If(String.IsNullOrEmpty(nbCell), String.Empty, nbCell)
         row("cell_id") = cellId.ToString()
         row("bsic") = bsic.ToString()
+
+        ApplyFilterToDataGridViews()
     End Sub
 
 
@@ -934,10 +932,9 @@ Public Class Form1
         row("rsrp") = If(rsrp.HasValue, rsrp.Value, DBNull.Value)
 
         dt.Rows.Add(row)
+
+        ApplyFilterToDataGridViews()
     End Sub
-
-
-
 
     Private Sub UpdateWcdmaDataGridView(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
                                     band As String, psc As Integer, earfcn As Integer, nbsc As Integer,
@@ -972,6 +969,8 @@ Public Class Form1
             DataGridView2.Rows(rowIndex).Cells("Column10").Value = cellId
             DataGridView2.Rows(rowIndex).Cells("Column13").Value = rscp
         End If
+
+        ApplyFilterToDataGridViews()
     End Sub
 
 
@@ -1646,15 +1645,7 @@ Public Class Form1
     End Sub
 
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-        Dim f6 As Form6
-
-        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
-            f6 = New Form6()
-        Else
-            f6 = New Form6(operatorFilter)
-        End If
-
-        f6.Show()
+        OpenForm6()
     End Sub
 
     Private Sub Chart1_Click(sender As Object, e As EventArgs) Handles Chart1.Click
@@ -1682,15 +1673,49 @@ Public Class Form1
     End Sub
 
     Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
-        Dim f5 As Form5
+        OpenForm5()
+    End Sub
+
+    Private Sub OpenForm5()
+        For Each f As Form In Application.OpenForms
+            If TypeOf f Is Form5 Then
+                f.BringToFront()
+                f.Focus()
+                Return
+            End If
+        Next
 
         If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
-            f5 = New Form5()
+            Using f5 As New Form5()
+                f5.ShowDialog(Me)
+            End Using
         Else
-            f5 = New Form5(operatorFilter)
+            Using f5 As New Form5(operatorFilter)
+                f5.ShowDialog(Me)
+            End Using
         End If
 
-        f5.Show()
+    End Sub
+
+    Private Sub OpenForm6()
+        For Each f As Form In Application.OpenForms
+            If TypeOf f Is Form6 Then
+                f.BringToFront()
+                f.Focus()
+                Return
+            End If
+        Next
+
+        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
+            Using f6 As New Form6()
+                f6.ShowDialog(Me)
+            End Using
+        Else
+            Using f6 As New Form6(operatorFilter)
+                f6.ShowDialog(Me)
+            End Using
+        End If
+
     End Sub
 
 
@@ -1950,6 +1975,8 @@ Public Class Form1
         DataGridView1.Columns("Column13").DataPropertyName = "nb_cell"
         DataGridView1.Columns("Column10").DataPropertyName = "cell_id"
         DataGridView1.Columns("Column11").DataPropertyName = "bsic"
+
+        ApplyFilterToDataGridViews()
     End Sub
 
     Private Sub LoadWCDMAData(dataTable As DataTable)
@@ -1957,7 +1984,6 @@ Public Class Form1
         DataGridView2.AutoGenerateColumns = False
         DataGridView2.DataSource = dataTable
 
-        ' Map the columns
         DataGridView2.Columns("Column16").DataPropertyName = "provider_name"
         DataGridView2.Columns("Column17").DataPropertyName = "plmn"
         DataGridView2.Columns("Column18").DataPropertyName = "mcc"
@@ -1970,6 +1996,8 @@ Public Class Form1
         DataGridView2.Columns("Column22").DataPropertyName = "lac"
         DataGridView2.Columns("Column23").DataPropertyName = "cell_id"
         DataGridView2.Columns("Column25").DataPropertyName = "rscp"
+
+        ApplyFilterToDataGridViews()
     End Sub
 
     Private Sub LoadLTEData(dataTable As DataTable)
@@ -1977,7 +2005,6 @@ Public Class Form1
         DataGridView3.AutoGenerateColumns = False
         DataGridView3.DataSource = dataTable
 
-        ' Map the columns
         DataGridView3.Columns("Column28").DataPropertyName = "provider_name"
         DataGridView3.Columns("Column29").DataPropertyName = "plmn"
         DataGridView3.Columns("Column30").DataPropertyName = "mcc"
@@ -1988,6 +2015,8 @@ Public Class Form1
         DataGridView3.Columns("Column35").DataPropertyName = "lac"
         DataGridView3.Columns("Column33").DataPropertyName = "earfcn"
         DataGridView3.Columns("Column36").DataPropertyName = "rsrp"
+
+        ApplyFilterToDataGridViews()
     End Sub
 
     Public Sub LoadBaseStationData()
@@ -2329,347 +2358,6 @@ Public Class Form1
         End If
     End Function
 
-    ' Add these event handlers to your form load
-    Private Sub SetupDataGridViewEvents()
-        AddHandler DataGridView1.CellDoubleClick, AddressOf GSM_CellDoubleClick
-        AddHandler DataGridView2.CellDoubleClick, AddressOf WCDMA_CellDoubleClick
-        AddHandler DataGridView3.CellDoubleClick, AddressOf LTE_CellDoubleClick
-    End Sub
-
-    ' GSM double-click handler
-    Private Sub GSM_CellDoubleClick(sender As Object, e As DataGridViewCellEventArgs)
-        If e.RowIndex >= 0 AndAlso e.RowIndex < DataGridView1.Rows.Count - 1 Then
-            Dim gsmId As Integer = Convert.ToInt32(DataGridView1.Rows(e.RowIndex).Cells("ColumnIv").Value)
-            Console.WriteLine("Gsm cell id " & gsmId)
-            OpenGSMEditForm(gsmId)
-        End If
-    End Sub
-
-    ' WCDMA double-click handler
-    Private Sub WCDMA_CellDoubleClick(sender As Object, e As DataGridViewCellEventArgs)
-        If e.RowIndex >= 0 AndAlso e.RowIndex < DataGridView2.Rows.Count - 1 Then
-            Dim wcdmaId As Integer = Convert.ToInt32(DataGridView2.Rows(e.RowIndex).Cells("ColumnIv2").Value)
-            OpenWCDMAEditForm(wcdmaId)
-        End If
-    End Sub
-
-    ' LTE double-click handler
-    Private Sub LTE_CellDoubleClick(sender As Object, e As DataGridViewCellEventArgs)
-        If e.RowIndex >= 0 AndAlso e.RowIndex < DataGridView3.Rows.Count - 1 Then
-            Dim lteId As Integer = Convert.ToInt32(DataGridView3.Rows(e.RowIndex).Cells("ColumnIv3").Value)
-            OpenLTEEditForm(lteId)
-        End If
-    End Sub
-
-    '================= GSM =====================
-    Private Sub OpenGSMEditForm(gsmId As Integer)
-        Console.WriteLine("Open gsm form called with gsm id " & gsmId)
-        Dim editForm As New Form()
-        editForm.Text = "Edit GSM Cell"
-        editForm.Size = New Size(450, 550)
-
-        Dim gsmData As DataRow = GetGSMDataById(gsmId)
-        If gsmData Is Nothing Then Return
-
-        ' Controls
-        Dim txtProviderName As New TextBox() With {.Text = GetSafeString(gsmData("ProviderName")), .Location = New Point(150, 20), .Width = 200}
-        Dim txtPlmn As New TextBox() With {.Text = GetSafeString(gsmData("plmn")), .Location = New Point(150, 50), .Width = 100}
-        Dim txtMcc As New TextBox() With {.Text = gsmData("mcc").ToString(), .Location = New Point(150, 80), .Width = 80}
-        Dim txtMnc As New TextBox() With {.Text = gsmData("mnc").ToString(), .Location = New Point(150, 110), .Width = 80}
-        Dim txtBand As New TextBox() With {.Text = GetSafeString(gsmData("band")), .Location = New Point(150, 140), .Width = 100}
-        Dim txtArfcn As New TextBox() With {.Text = gsmData("arfcn").ToString(), .Location = New Point(150, 170), .Width = 100}
-        Dim txtLac As New TextBox() With {.Text = gsmData("lac").ToString(), .Location = New Point(150, 200), .Width = 100}
-        Dim txtNbCell As New TextBox() With {.Text = gsmData("nb_cell").ToString(), .Location = New Point(150, 230), .Width = 100}
-        Dim txtCellId As New TextBox() With {.Text = gsmData("cell_id").ToString(), .Location = New Point(150, 260), .Width = 150}
-        Dim txtBsic As New TextBox() With {.Text = gsmData("bsic").ToString(), .Location = New Point(150, 290), .Width = 80}
-
-        Dim btnSave As New Button() With {.Text = "Save Changes", .Location = New Point(150, 400), .Width = 120}
-        AddHandler btnSave.Click, Sub(s, ev)
-                                      SaveGSMChanges(gsmId, txtProviderName.Text, txtPlmn.Text, txtMcc.Text, txtMnc.Text, txtBand.Text, txtArfcn.Text, txtLac.Text, txtNbCell.Text, txtCellId.Text, txtBsic.Text)
-                                      editForm.Close()
-                                  End Sub
-
-        editForm.Controls.AddRange({
-            New Label() With {.Text = "Provider Name:", .Location = New Point(20, 23)},
-            txtProviderName,
-            New Label() With {.Text = "PLMN:", .Location = New Point(20, 53)},
-            txtPlmn,
-            New Label() With {.Text = "MCC:", .Location = New Point(20, 83)},
-            txtMcc,
-            New Label() With {.Text = "MNC:", .Location = New Point(20, 113)},
-            txtMnc,
-            New Label() With {.Text = "Band:", .Location = New Point(20, 143)},
-            txtBand,
-            New Label() With {.Text = "ARFCN:", .Location = New Point(20, 173)},
-            txtArfcn,
-            New Label() With {.Text = "LAC:", .Location = New Point(20, 203)},
-            txtLac,
-            New Label() With {.Text = "NB Cell:", .Location = New Point(20, 233)},
-            txtNbCell,
-            New Label() With {.Text = "Cell ID:", .Location = New Point(20, 263)},
-            txtCellId,
-            New Label() With {.Text = "BSIC:", .Location = New Point(20, 293)},
-            txtBsic,
-            btnSave
-        })
-
-        Console.WriteLine("Showing GSM edit form for gsm id " & gsmId)
-        editForm.ShowDialog()
-    End Sub
-
-    Private Sub SaveGSMChanges(gsmId As Integer, providerName As String, plmn As String, mcc As String, mnc As String, band As String, arfcn As String, lac As String, nbCell As String, cellId As String, bsic As String)
-        Using con As New SqlConnection(connectionString)
-            con.Open()
-            Dim query As String = "UPDATE gsm_cells SET ProviderName=@ProviderName, plmn=@plmn, mcc=@mcc, mnc=@mnc, band=@band, arfcn=@arfcn, lac=@lac, nb_cell=@nb_cell, cell_id=@cell_id, bsic=@bsic WHERE gsm_id=@gsm_id"
-            Using cmd As New SqlCommand(query, con)
-                cmd.Parameters.AddWithValue("@gsm_id", gsmId)
-                cmd.Parameters.AddWithValue("@ProviderName", providerName)
-                cmd.Parameters.AddWithValue("@plmn", plmn)
-                cmd.Parameters.AddWithValue("@mcc", mcc)
-                cmd.Parameters.AddWithValue("@mnc", mnc)
-                cmd.Parameters.AddWithValue("@band", band)
-                cmd.Parameters.AddWithValue("@arfcn", arfcn)
-                cmd.Parameters.AddWithValue("@lac", lac)
-                cmd.Parameters.AddWithValue("@nb_cell", nbCell)
-                cmd.Parameters.AddWithValue("@cell_id", cellId)
-                cmd.Parameters.AddWithValue("@bsic", bsic)
-                cmd.ExecuteNonQuery()
-            End Using
-        End Using
-        Dim dbHelper As New DatabaseHelper()
-        LoadGSMData(dbHelper.GetGSMData())
-    End Sub
-
-    '================= WCDMA =====================
-    Private Sub OpenWCDMAEditForm(wcdmaId As Integer)
-        Console.WriteLine("Showing WCDMA edit form for id " & wcdmaId)
-        Dim editForm As New Form()
-        editForm.Text = "Edit WCDMA Cell"
-        editForm.Size = New Size(500, 550)
-
-        Dim wcdmaData As DataRow = GetWCDMADataById(wcdmaId)
-        If wcdmaData Is Nothing Then Return
-
-        Dim y As Integer = 20
-        Dim labelX As Integer = 20
-        Dim textX As Integer = 150
-        Dim spacing As Integer = 30
-
-        ' Helper function: label + textbox
-        Dim controls As New List(Of Control)
-        Dim addField = Sub(caption As String, value As String, width As Integer)
-                           Dim lbl As New Label() With {.Text = caption, .Location = New Point(labelX, y + 3), .AutoSize = True}
-                           Dim txt As New TextBox() With {.Text = value, .Location = New Point(textX, y), .Width = width}
-                           controls.Add(lbl)
-                           controls.Add(txt)
-                           y += spacing
-                       End Sub
-
-        ' Add fields (manually pass width)
-        addField("Provider Name", GetSafeString(wcdmaData("provider_name")), 200)
-        addField("PLMN", GetSafeString(wcdmaData("plmn")), 100)
-        addField("MCC", wcdmaData("mcc").ToString(), 80)
-        addField("MNC", wcdmaData("mnc").ToString(), 80)
-        addField("Band", GetSafeString(wcdmaData("band")), 100)
-        addField("PSC", wcdmaData("psc").ToString(), 100)
-        addField("EARFCN", wcdmaData("earfcn").ToString(), 100)
-        addField("NBSC", wcdmaData("nbsc").ToString(), 100)
-        addField("LAC", wcdmaData("lac").ToString(), 100)
-        addField("Cell ID", wcdmaData("cell_id").ToString(), 150)
-        addField("RSCP", wcdmaData("rscp").ToString(), 100)
-
-        ' Extract the textboxes
-        Dim txtProviderName As TextBox = CType(controls(1), TextBox)
-        Dim txtPlmn As TextBox = CType(controls(3), TextBox)
-        Dim txtMcc As TextBox = CType(controls(5), TextBox)
-        Dim txtMnc As TextBox = CType(controls(7), TextBox)
-        Dim txtBand As TextBox = CType(controls(9), TextBox)
-        Dim txtPsc As TextBox = CType(controls(11), TextBox)
-        Dim txtEarfcn As TextBox = CType(controls(13), TextBox)
-        Dim txtNbsc As TextBox = CType(controls(15), TextBox)
-        Dim txtLac As TextBox = CType(controls(17), TextBox)
-        Dim txtCellId As TextBox = CType(controls(19), TextBox)
-        Dim txtRscp As TextBox = CType(controls(21), TextBox)
-
-        ' Save button
-        Dim btnSave As New Button() With {.Text = "Save Changes", .Location = New Point(150, y + 20), .Width = 120}
-        AddHandler btnSave.Click, Sub(s, ev)
-                                      SaveWCDMAChanges(wcdmaId,
-                                                   txtProviderName.Text,
-                                                   txtPlmn.Text,
-                                                   txtMcc.Text,
-                                                   txtMnc.Text,
-                                                   txtBand.Text,
-                                                   txtPsc.Text,
-                                                   txtEarfcn.Text,
-                                                   txtNbsc.Text,
-                                                   txtLac.Text,
-                                                   txtCellId.Text,
-                                                   txtRscp.Text)
-                                      editForm.Close()
-                                  End Sub
-
-        ' Add controls to form
-        editForm.Controls.AddRange(controls.ToArray())
-        editForm.Controls.Add(btnSave)
-
-        Console.WriteLine("Opening dialog for WCDMA edit form")
-        editForm.ShowDialog()
-    End Sub
-
-
-
-    Private Sub SaveWCDMAChanges(wcdmaId As Integer, providerName As String, plmn As String, mcc As String, mnc As String, band As String, psc As String, earfcn As String, nbsc As String, lac As String, cellId As String, rscp As String)
-        Using con As New SqlConnection(connectionString)
-            con.Open()
-            Dim query As String = "UPDATE wcdma_cells SET provider_name=@provider_name, plmn=@plmn, mcc=@mcc, mnc=@mnc, band=@band, psc=@psc, earfcn=@earfcn, nbsc=@nbsc, lac=@lac, cell_id=@cell_id, rscp=@rscp WHERE wcdma_id=@wcdma_id"
-            Using cmd As New SqlCommand(query, con)
-                cmd.Parameters.AddWithValue("@wcdma_id", wcdmaId)
-                cmd.Parameters.AddWithValue("@provider_name", providerName)
-                cmd.Parameters.AddWithValue("@plmn", plmn)
-                cmd.Parameters.AddWithValue("@mcc", mcc)
-                cmd.Parameters.AddWithValue("@mnc", mnc)
-                cmd.Parameters.AddWithValue("@band", band)
-                cmd.Parameters.AddWithValue("@psc", psc)
-                cmd.Parameters.AddWithValue("@earfcn", earfcn)
-                cmd.Parameters.AddWithValue("@nbsc", nbsc)
-                cmd.Parameters.AddWithValue("@lac", lac)
-                cmd.Parameters.AddWithValue("@cell_id", cellId)
-                cmd.Parameters.AddWithValue("@rscp", rscp)
-                cmd.ExecuteNonQuery()
-            End Using
-        End Using
-        Dim dbHelper As New DatabaseHelper()
-        LoadWCDMAData(dbHelper.GetWCDMAData())
-    End Sub
-
-    Private Sub OpenLTEEditForm(lteId As Integer)
-        Console.WriteLine("Showing LTE edit form for id " & lteId)
-        Dim editForm As New Form()
-        editForm.Text = "Edit LTE Cell"
-        editForm.Size = New Size(500, 650)
-
-        ' Retrieve LTE data
-        Dim lteData As DataRow = GetLTEDataById(lteId)
-        If lteData Is Nothing Then Return
-
-        Dim y As Integer = 20
-        Dim labelX As Integer = 20
-        Dim textX As Integer = 150
-        Dim spacing As Integer = 30
-
-        ' Helper function to add a label + textbox
-        Dim controls As New List(Of Control)
-        Dim addField = Function(caption As String, value As String, width As Integer) As TextBox
-                           Dim lbl As New Label() With {.Text = caption, .Location = New Point(labelX, y + 3), .AutoSize = True}
-                           Dim txt As New TextBox() With {.Text = value, .Location = New Point(textX, y), .Width = width}
-                           controls.Add(lbl)
-                           controls.Add(txt)
-                           y += spacing
-                           Return txt
-                       End Function
-
-        ' Add fields
-        Dim txtProviderName As TextBox = addField("Provider Name", GetSafeString(lteData("provider_name")), 200)
-        Dim txtPlmn As TextBox = addField("PLMN", GetSafeString(lteData("plmn")), 100)
-        Dim txtMcc As TextBox = addField("MCC", lteData("mcc").ToString(), 80)
-        Dim txtMnc As TextBox = addField("MNC", lteData("mnc").ToString(), 80)
-        Dim txtBand As TextBox = addField("Band", GetSafeString(lteData("band")), 100)
-        Dim txtPci As TextBox = addField("PCI", lteData("pci").ToString(), 100)
-        Dim txtNbEarfcn As TextBox = addField("NB EARFCN", lteData("nb_earfcn").ToString(), 100)
-        Dim txtNbsc As TextBox = addField("NBSC", lteData("nbsc").ToString(), 100)
-        Dim txtRat As TextBox = addField("RAT", GetSafeString(lteData("rat")), 80)
-        Dim txtLac As TextBox = addField("LAC", lteData("lac").ToString(), 100)
-        Dim txtCellId As TextBox = addField("Cell ID", lteData("cell_id").ToString(), 150)
-        Dim txtRsrp As TextBox = addField("RSRP", lteData("rsrp").ToString(), 100)
-
-        ' Save button
-        Dim btnSave As New Button() With {.Text = "Save Changes", .Location = New Point(150, y + 20), .Width = 120}
-        AddHandler btnSave.Click, Sub(s, ev)
-                                      SaveLTEChanges(lteId,
-                                                 txtProviderName.Text,
-                                                 txtPlmn.Text,
-                                                 txtMcc.Text,
-                                                 txtMnc.Text,
-                                                 txtBand.Text,
-                                                 txtPci.Text,
-                                                 txtNbEarfcn.Text,
-                                                 txtNbsc.Text,
-                                                 txtRat.Text,
-                                                 txtLac.Text,
-                                                 txtCellId.Text,
-                                                 txtRsrp.Text)
-                                      editForm.Close()
-                                  End Sub
-
-        ' Add all controls
-        editForm.Controls.AddRange(controls.ToArray())
-        editForm.Controls.Add(btnSave)
-
-        Console.WriteLine("Opening dialog for LTE edit form")
-        editForm.ShowDialog()
-    End Sub
-
-    Private Sub SaveLTEChanges(lteId As Integer,
-                           providerName As String,
-                           plmn As String,
-                           mcc As String,
-                           mnc As String,
-                           band As String,
-                           pci As String,
-                           nbEarfcn As String,
-                           nbsc As String,
-                           rat As String,
-                           lac As String,
-                           cellId As String,
-                           rsrp As String)
-
-        Try
-            Using connection As New SqlConnection(connectionString)
-                connection.Open()
-                Dim query As String = "UPDATE lte_cells 
-                                   SET provider_name = @providerName,
-                                       plmn = @plmn,
-                                       mcc = @mcc,
-                                       mnc = @mnc,
-                                       band = @band,
-                                       pci = @pci,
-                                       nb_earfcn = @nbEarfcn,
-                                       nbsc = @nbsc,
-                                       rat = @rat,
-                                       lac = @lac,
-                                       cell_id = @cellId,
-                                       rsrp = @rsrp
-                                   WHERE lte_id = @lteId"
-
-                Using command As New SqlCommand(query, connection)
-                    command.Parameters.AddWithValue("@providerName", providerName)
-                    command.Parameters.AddWithValue("@plmn", plmn)
-                    command.Parameters.AddWithValue("@mcc", Integer.Parse(mcc))
-                    command.Parameters.AddWithValue("@mnc", Integer.Parse(mnc))
-                    command.Parameters.AddWithValue("@band", band)
-                    command.Parameters.AddWithValue("@pci", Integer.Parse(pci))
-                    command.Parameters.AddWithValue("@nbEarfcn", Integer.Parse(nbEarfcn))
-                    command.Parameters.AddWithValue("@nbsc", Integer.Parse(nbsc))
-                    command.Parameters.AddWithValue("@rat", rat)
-                    command.Parameters.AddWithValue("@lac", Integer.Parse(lac))
-                    command.Parameters.AddWithValue("@cellId", Long.Parse(cellId)) ' BIGINT
-                    command.Parameters.AddWithValue("@rsrp", Double.Parse(rsrp))
-                    command.Parameters.AddWithValue("@lteId", lteId)
-
-                    command.ExecuteNonQuery()
-                End Using
-            End Using
-            Dim dbHelper As New DatabaseHelper()
-            LoadLTEData(dbHelper.GetLTEData())
-            MessageBox.Show("LTE cell updated successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
-
-        Catch ex As Exception
-            MessageBox.Show("Error updating LTE cell: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
-    End Sub
-
-
     Public Function GetGSMDataById(gsmId As Integer) As DataRow
 
         Using connection As New SqlConnection(connectionString)
@@ -2730,35 +2418,6 @@ Public Class Form1
         End Using
         Return Nothing
     End Function
-
-
-    Public Sub SaveGSMChanges(gsmId As Integer, providerName As String, plmn As String, mcc As String, mnc As String, band As String, arfcn As String, lac As String, cellId As String, bsic As String)
-        Using connection As New SqlConnection(connectionString)
-            connection.Open()
-            Dim query As String = "UPDATE gsm_cells SET ProviderName = @ProviderName, plmn = @plmn, mcc = @mcc, " &
-                                 "mnc = @mnc, band = @band, arfcn = @arfcn, lac = @lac, cell_id = @cell_id, " &
-                                 "bsic = @bsic, Timestamp = SYSUTCDATETIME() WHERE gsm_id = @gsmId"
-
-            Using command As New SqlCommand(query, connection)
-                command.Parameters.AddWithValue("@gsmId", gsmId)
-                command.Parameters.AddWithValue("@ProviderName", providerName)
-                command.Parameters.AddWithValue("@plmn", plmn)
-                command.Parameters.AddWithValue("@mcc", ConvertToInt(mcc))
-                command.Parameters.AddWithValue("@mnc", ConvertToInt(mnc))
-                command.Parameters.AddWithValue("@band", band)
-                command.Parameters.AddWithValue("@arfcn", ConvertToInt(arfcn))
-                command.Parameters.AddWithValue("@lac", ConvertToInt(lac))
-                command.Parameters.AddWithValue("@cell_id", ConvertToLong(cellId))
-                command.Parameters.AddWithValue("@bsic", ConvertToByte(bsic))
-
-                command.ExecuteNonQuery()
-            End Using
-        End Using
-
-        MessageBox.Show("GSM cell updated successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
-        Dim dbHelper As New DatabaseHelper()
-        LoadGSMData(dbHelper.GetGSMData()) ' Refresh the grid
-    End Sub
 
     Private Sub AddInputConstraints()
         ' MCC fields (3 digits) - Complete all MCC fields
@@ -3411,6 +3070,25 @@ Public Class Form1
         Next
 
         operatorFilter = selectedItems
+        ApplyFilterToDataGridViews()
+    End Sub
+
+    Private Sub ApplyFilterToDataGridViews()
+        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
+            If DataGridView1.DataSource IsNot Nothing AndAlso TypeOf DataGridView1.DataSource Is DataTable Then
+                CType(DataGridView1.DataSource, DataTable).DefaultView.RowFilter = ""
+            End If
+            If DataGridView2.DataSource IsNot Nothing AndAlso TypeOf DataGridView2.DataSource Is DataTable Then
+                CType(DataGridView2.DataSource, DataTable).DefaultView.RowFilter = ""
+            End If
+            If DataGridView3.DataSource IsNot Nothing AndAlso TypeOf DataGridView3.DataSource Is DataTable Then
+                CType(DataGridView3.DataSource, DataTable).DefaultView.RowFilter = ""
+            End If
+        Else
+            FilterDataGridView(DataGridView1, operatorFilter)
+            FilterDataGridView(DataGridView2, operatorFilter)
+            FilterDataGridView(DataGridView3, operatorFilter)
+        End If
     End Sub
 
     Private Sub FilterDataGridView(dgv As DataGridView, filters As List(Of String))
@@ -3418,13 +3096,31 @@ Public Class Form1
             Dim dt As DataTable = CType(dgv.DataSource, DataTable)
             Dim filterExpression As String = ""
 
-            For Each filter As String In filters
-                If Not String.IsNullOrEmpty(filterExpression) Then
-                    filterExpression += " OR "
-                End If
-                filterExpression += $"LCASE(provider_name) LIKE '%{filter.ToLower()}%'"
-            Next
+            Dim providerColumnName As String = ""
 
+            If dgv Is DataGridView1 Then
+                providerColumnName = "ProviderName"
+            ElseIf dgv Is DataGridView2 Then
+                providerColumnName = "provider_name"
+            ElseIf dgv Is DataGridView3 Then
+                providerColumnName = "provider_name"
+            End If
+
+            If filters.Contains("All") Then
+                dt.DefaultView.RowFilter = ""
+                Return
+            End If
+
+            If Not String.IsNullOrEmpty(providerColumnName) Then
+                For Each filter As String In filters
+                    If Not String.IsNullOrEmpty(filterExpression) Then
+                        filterExpression += " OR "
+                    End If
+                    filterExpression += $"{providerColumnName} LIKE '%{filter}%'"
+                Next
+            End If
+
+            ' Apply filter
             If Not String.IsNullOrEmpty(filterExpression) Then
                 dt.DefaultView.RowFilter = filterExpression
             Else
@@ -3432,6 +3128,7 @@ Public Class Form1
             End If
         End If
     End Sub
+
 
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
         StartCellOperation("192.168.1.90", Button6)

@@ -6,7 +6,6 @@ Imports System.Drawing
 Public Class Form6
     Private ReadOnly connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
     Private providerFilter As List(Of String)
-
     Public Sub New()
         InitializeComponent()
     End Sub
@@ -38,7 +37,6 @@ Public Class Form6
                     filters = New List(Of String)()
                 End If
 
-
                 Dim gsmQuery As String = "
     SELECT gsm_id, ProviderName, plmn, mcc, mnc, band, arfcn, lac, cell_id, bsic, rssi, nb_cell, [Timestamp]
     FROM gsm_cells
@@ -52,7 +50,6 @@ Public Class Form6
                     gsmQuery &= " WHERE LOWER(ProviderName) IN (" & String.Join(",", paramNames) & ")"
                 End If
 
-
                 Dim gsmTable As New DataTable()
                 Using adapter As New SqlDataAdapter(gsmQuery, connection)
                     If filters.Count > 0 AndAlso Not filters.Contains("All") Then
@@ -64,7 +61,6 @@ Public Class Form6
                     adapter.Fill(gsmTable)
                 End Using
 
-
                 Dim result As New DataTable()
                 result.Columns.Add("rank", GetType(Integer))
                 result.Columns.Add("plmn", GetType(String))
@@ -72,56 +68,40 @@ Public Class Form6
                 result.Columns.Add("channel", GetType(Integer))
                 result.Columns.Add("gsmId", GetType(Integer))
 
-                Dim allArfcns As New List(Of Tuple(Of Integer, String, Integer))()
+                Dim allArfcns As New List(Of Tuple(Of Integer, String, String, Integer))()
 
                 For Each row As DataRow In gsmTable.Rows
                     If Not IsDBNull(row("nb_cell")) Then
                         Dim mcc As Integer = row.Field(Of Integer)("mcc")
                         Dim mnc As Integer = row.Field(Of Integer)("mnc")
                         Dim gsmId As Integer = row.Field(Of Integer)("gsm_id")
+                        Dim band As String = row.Field(Of String)("band")
                         Dim plmnStr As String = $"{mcc:D3}{mnc:D2}"
 
                         Dim raw As String = row.Field(Of String)("nb_cell")
                         Dim parsed As List(Of Integer) = raw.Trim("["c, "]"c) _
-                        .Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries) _
-                        .Select(Function(s) Integer.Parse(s.Trim())) _
-                        .ToList()
+                    .Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries) _
+                    .Select(Function(s) Integer.Parse(s.Trim())) _
+                    .ToList()
 
                         For Each arfcn In parsed
-                            allArfcns.Add(Tuple.Create(arfcn, plmnStr, gsmId))
+                            allArfcns.Add(Tuple.Create(arfcn, plmnStr, band, gsmId))
                         Next
                     End If
                 Next
 
-                Dim ranked900 = allArfcns.GroupBy(Function(x) x.Item1) _
-                .Where(Function(g) g.Key >= 1 AndAlso g.Key <= 124) _
+                Dim finalRanked = allArfcns.GroupBy(Function(x) x.Item1) _
                 .Select(Function(g) New With {
                     .Arfcn = g.Key,
                     .Count = g.Count(),
                     .Plmn = g.First().Item2,
-                    .Band = "GSM 900",
-                    .GsmId = g.First().Item3
+                    .Band = g.First().Item3,
+                    .GsmId = g.First().Item4
                 }) _
                 .OrderByDescending(Function(x) x.Count) _
                 .ThenBy(Function(x) x.Arfcn) _
-                .Take(2) _
+                .Take(4) _
                 .ToList()
-
-                Dim ranked1800 = allArfcns.GroupBy(Function(x) x.Item1) _
-                .Where(Function(g) g.Key >= 512 AndAlso g.Key <= 885) _
-                .Select(Function(g) New With {
-                    .Arfcn = g.Key,
-                    .Count = g.Count(),
-                    .Plmn = g.First().Item2,
-                    .Band = "GSM 1800",
-                    .GsmId = g.First().Item3
-                }) _
-                .OrderByDescending(Function(x) x.Count) _
-                .ThenBy(Function(x) x.Arfcn) _
-                .Take(2) _
-                .ToList()
-
-                Dim finalRanked = ranked900.Concat(ranked1800).Take(4).ToList()
 
                 Dim rankCounter As Integer = 1
                 For Each entry In finalRanked
@@ -145,27 +125,27 @@ Public Class Form6
                 Dim colChannel As New DataGridViewTextBoxColumn() With {.Name = "channel", .HeaderText = "CHANNEL", .DataPropertyName = "channel", .Width = 100}
 
                 Dim colChosenCh As New DataGridViewTextBoxColumn() With {
-                    .Name = "chosenCh",
-                    .HeaderText = "Chosen Channel",
-                    .DataPropertyName = "chosenCh",
-                    .Visible = False
-                }
+                .Name = "chosenCh",
+                .HeaderText = "Chosen Channel",
+                .DataPropertyName = "chosenCh",
+                .Visible = False
+            }
 
                 Dim gsmIdCh As New DataGridViewTextBoxColumn() With {
-                    .Name = "gsmId",
-                    .HeaderText = "Gsm Id",
-                    .DataPropertyName = "gsmId",
-                    .Visible = False
-                }
+                .Name = "gsmId",
+                .HeaderText = "Gsm Id",
+                .DataPropertyName = "gsmId",
+                .Visible = False
+            }
 
                 DataGridView1.Columns.AddRange({colRank, colPlmn, colBand, colChannel, colChosenCh, gsmIdCh})
 
                 Dim applyColumn As New DataGridViewButtonColumn() With {
-                    .Name = "apply",
-                    .HeaderText = "Apply Choice",
-                    .UseColumnTextForButtonValue = False,
-                    .Width = 120
-                }
+                .Name = "apply",
+                .HeaderText = "Apply Choice",
+                .UseColumnTextForButtonValue = False,
+                .Width = 120
+            }
                 applyColumn.DefaultCellStyle.BackColor = Color.Green
                 applyColumn.DefaultCellStyle.ForeColor = Color.White
                 DataGridView1.Columns.Add(applyColumn)
@@ -177,6 +157,7 @@ Public Class Form6
             Console.WriteLine("Error loading GSM channels: " & ex.StackTrace)
         End Try
     End Sub
+
 
 
     Private Function GsmChannelDefaultBand(channel As Integer) As String
@@ -206,7 +187,7 @@ Public Class Form6
     End Function
 
     Private Sub UpdateApplyButtonsState()
-        Dim usedCh As New HashSet(Of Integer)
+        Dim channelUsage As New Dictionary(Of Integer, Integer)
 
         For Each row As DataGridViewRow In DataGridView1.Rows
             If row.IsNewRow Then Continue For
@@ -221,25 +202,34 @@ Public Class Form6
                 btnCell.Value = "N/A"
                 btnCell.Style.BackColor = Color.Gray
                 btnCell.Style.ForeColor = Color.White
+                row.Cells("chosenCh").Value = DBNull.Value
                 Continue For
             End If
 
-            Dim chosenCh As Integer = targetCh.FirstOrDefault(Function(c) Not usedCh.Contains(c))
+            ' Pick channel with least usage so far
+            Dim chosenCh As Integer = targetCh _
+            .OrderBy(Function(c)
+                         If channelUsage.ContainsKey(c) Then
+                             Return channelUsage(c)
+                         Else
+                             Return 0
+                         End If
+                     End Function) _
+            .First()
 
-            If chosenCh > 0 Then
-                btnCell.Value = $"Apply to Ch{chosenCh}"
-                btnCell.Style.BackColor = Color.Green
-                btnCell.Style.ForeColor = Color.White
-                usedCh.Add(chosenCh)
-                row.Cells("chosenCh").Value = chosenCh
+            btnCell.Value = $"Apply to Ch{chosenCh}"
+            btnCell.Style.BackColor = Color.Green
+            btnCell.Style.ForeColor = Color.White
+            row.Cells("chosenCh").Value = chosenCh
+
+            If channelUsage.ContainsKey(chosenCh) Then
+                channelUsage(chosenCh) += 1
             Else
-                btnCell.Value = "N/A"
-                btnCell.Style.BackColor = Color.Gray
-                btnCell.Style.ForeColor = Color.White
-                row.Cells("chosenCh").Value = DBNull.Value
+                channelUsage(chosenCh) = 1
             End If
         Next
     End Sub
+
 
 
     Private Sub DataGridView1_CurrentCellDirtyStateChanged(sender As Object, e As EventArgs)

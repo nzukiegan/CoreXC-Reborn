@@ -46,10 +46,10 @@ Public Class DatabaseInitializer
         sb.AppendLine("('Telkomsel', 'TELKOMSEL', '51010', 510, 10, '', 'Telkomsel main PLMN'),")
         sb.AppendLine("('XLCOMINDO', 'XLCOMINDO', '51011', 510, 11, '', 'XLCOMINDO PLMN'),")
         sb.AppendLine("('THREE', 'THREE', '51089', 510, 89, '', 'Three'),")
-        sb.AppendLine("('Indosat', 'INDOSAT', '51001', 510, 1, '', 'Indosat GSM/4G/5G network'),")
+        sb.AppendLine("('Indosat', 'INDOSAT', '51001', 510, 01, '', 'Indosat GSM/4G/5G network'),")
         sb.AppendLine("('Indosat', 'INDOSAT', '51021', 510, 21, '', 'Indosat secondary code'),")
-        sb.AppendLine("('XLCOMINDO', 'XLCOMINDO', '51007', 510, 7, '', 'XLCOMINDO GSM/4G/5G network'),")
-        sb.AppendLine("('Smarfren', 'SMARsFREN', '51009', 510, 9, '', 'Smarfren LTE/CDMA network'),")
+        sb.AppendLine("('XLCOMINDO', 'XLCOMINDO', '51007', 510, 07, '', 'XLCOMINDO GSM/4G/5G network'),")
+        sb.AppendLine("('Smarfren', 'SMARFREN', '51009', 510, 09, '', 'Smarfren LTE/CDMA network'),")
         sb.AppendLine("('Smarfren ', 'SMARFREN', '51028', 510, 28, '', 'Smarfren test / reserved PLMN');")
         sb.AppendLine("END")
 
@@ -75,7 +75,6 @@ Public Class DatabaseInitializer
     Public Async Function ApplySchemaAsync() As Task
         Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"
 
-        ' Build the full SQL script as a string
         Dim sb As New StringBuilder()
 
         sb.AppendLine("-- USERS TABLE")
@@ -475,14 +474,13 @@ Public Class DatabaseInitializer
         sb.AppendLine("END")
         sb.AppendLine()
 
-        ' Execute script
         Dim fullSql As String = sb.ToString()
 
         Using conn As New SqlConnection(targetDbConnection)
             Await conn.OpenAsync()
 
             Using cmd As New SqlCommand(fullSql, conn)
-                cmd.CommandTimeout = 0 ' long scripts may need more time
+                cmd.CommandTimeout = 0
                 Await cmd.ExecuteNonQueryAsync()
             End Using
         End Using

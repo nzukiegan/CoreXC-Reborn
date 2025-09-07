@@ -1,10 +1,8 @@
-﻿' Add these imports at the top of your file
-Imports System.Configuration
+﻿Imports System.Configuration
 Imports System.Data.SqlClient
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 Imports Microsoft.SqlServer
 
-' Database helper class
 Public Class DatabaseHelper
     Private ReadOnly connectionString As String = $"Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Integrated Security=true;"
 
@@ -13,7 +11,6 @@ Public Class DatabaseHelper
             Using connection As New SqlConnection(connectionString)
                 connection.Open()
 
-                ' First check if a record already exists for this channel
                 Dim checkQuery As String = "SELECT COUNT(*) FROM base_stations WHERE channel_number = @channel_number"
                 Dim recordExists As Boolean = False
 
@@ -23,7 +20,6 @@ Public Class DatabaseHelper
                 End Using
 
                 If recordExists Then
-                    ' UPDATE existing record
                     Dim updateQuery As String = "UPDATE base_stations SET " &
                                          "is_gsm = @is_gsm, " &
                                          "is_lte = @is_lte, " &
@@ -55,7 +51,6 @@ Public Class DatabaseHelper
                         Return result > 0
                     End Using
                 Else
-                    ' INSERT new record
                     Dim insertQuery As String = "INSERT INTO base_stations (channel_number, is_gsm, is_lte, is_wcdma, " &
                                          "earfcn, mcc, bsic, mnc, cid, lac, band, last_updated) " &
                                          "VALUES (@channel_number, @is_gsm, @is_lte, @is_wcdma, " &
@@ -85,7 +80,6 @@ Public Class DatabaseHelper
         End Try
     End Function
 
-    ' Method to get GSM data
     Public Function GetGSMData() As DataTable
         Dim dt As New DataTable()
 
@@ -103,7 +97,6 @@ Public Class DatabaseHelper
         Return dt
     End Function
 
-    ' Method to get WCDMA data
     Public Function GetWCDMAData() As DataTable
         Dim dt As New DataTable()
 
@@ -121,7 +114,6 @@ Public Class DatabaseHelper
         Return dt
     End Function
 
-    ' Method to get LTE data
     Public Function GetLTEData() As DataTable
         Dim dt As New DataTable()
 
@@ -140,7 +132,6 @@ Public Class DatabaseHelper
     End Function
 End Class
 
-' BaseStation class
 Public Class BaseStation
     Public Property ChannelNumber As Integer
     Public Property BaseStationName As String
@@ -160,7 +151,6 @@ Public Class BaseStation
     Public Property Band As Integer?
 End Class
 
-' Band frequency mapping
 Public Class BandHelper
     Public Shared Function GetFrequencyBandByChannel(channel As Integer) As Double
         Select Case channel
@@ -177,13 +167,13 @@ Public Class BandHelper
 
     Public Shared Function GetBandIdByChannel(channel As Integer) As Integer?
         Select Case channel
-            Case 1, 2 : Return 8  ' B8
-            Case 3, 4 : Return 3  ' B3
-            Case 5, 6 : Return 1  ' B1
-            Case 7, 8 : Return 5  ' B5
-            Case 9, 10 : Return 40 ' B40
-            Case 11, 12 : Return 28 ' B28
-            Case 13, 14 : Return 7  ' B7
+            Case 1, 2 : Return 8
+            Case 3, 4 : Return 3
+            Case 5, 6 : Return 1
+            Case 7, 8 : Return 5
+            Case 9, 10 : Return 40
+            Case 11, 12 : Return 28
+            Case 13, 14 : Return 7
             Case Else : Return Nothing
         End Select
     End Function

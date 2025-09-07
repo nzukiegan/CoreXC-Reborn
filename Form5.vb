@@ -13,8 +13,6 @@ Public Class Form5
 
     Public Sub New(filter As List(Of String))
         providerFilter = filter
-        Console.WriteLine("Operator filter " & providerFilter.ToString())
-
         InitializeComponent()
     End Sub
 
@@ -147,7 +145,6 @@ Public Class Form5
                     adapter.Fill(lteTable)
                 End Using
 
-
                 Dim result As New DataTable()
                 result.Columns.Add("channel", GetType(Integer))
                 result.Columns.Add("mcc", GetType(Integer))
@@ -169,80 +166,38 @@ Public Class Form5
                     result.Rows.Add(r)
                 Next
 
-                Dim groups = From row As DataRow In lteTable.Rows
-                             Let mccVal = If(row("mcc") Is DBNull.Value, Nothing, row("mcc"))
-                             Let mncVal = If(row("mnc") Is DBNull.Value, Nothing, row("mnc"))
-                             Group row By Key = (MCC:=If(mccVal Is Nothing, -1, Convert.ToInt32(mccVal)),
-                                             MNC:=If(mncVal Is Nothing, -1, Convert.ToInt32(mncVal))) Into grp = Group
-
                 Dim filled As New HashSet(Of Integer)()
 
-                Dim assignToFirstFree =
-                Function(targetChannels As Integer(),
-                         assign As Action(Of DataRow)) As Boolean
+                For Each row As DataRow In lteTable.Rows
+                    Dim nbRaw As String = If(row("nb_earfcn") Is DBNull.Value, "", row("nb_earfcn").ToString())
+                    If String.IsNullOrWhiteSpace(nbRaw) Then Continue For
 
-                    For Each ch In targetChannels
-                        If Not filled.Contains(ch) Then
-                            Dim row = result.Rows.Cast(Of DataRow)().First(Function(rr) Convert.ToInt32(rr("channel")) = ch)
-                            assign(row)
-                            filled.Add(ch)
-                            Return True
-                        End If
+                    Dim matches = System.Text.RegularExpressions.Regex.Matches(nbRaw, "\[(\d+),\s*\d+\]")
+                    For Each m As Match In matches
+                        Dim earfcn As Integer = Convert.ToInt32(m.Groups(1).Value)
+
+                        Dim bandInfo = MapEarfcnToBandInfo(earfcn)
+                        If String.IsNullOrEmpty(bandInfo.bx) Then Continue For
+
+                        Dim targetCh = ChannelsForBandCode(bandInfo.bx)
+                        If targetCh.Length = 0 Then Continue For
+
+                        For Each ch In targetCh
+                            If Not filled.Contains(ch) Then
+                                Dim dst = result.Rows.Cast(Of DataRow)().First(Function(rr) Convert.ToInt32(rr("channel")) = ch)
+
+                                dst("band") = bandInfo.bx & " (" & bandInfo.mhz & " MHz)"
+                                dst("mcc") = If(row("mcc") Is DBNull.Value, DBNull.Value, Convert.ToInt32(row("mcc")))
+                                dst("mnc") = If(row("mnc") Is DBNull.Value, DBNull.Value, Convert.ToInt32(row("mnc")))
+                                dst("earfcn") = earfcn
+                                dst("lte_id") = If(row("lte_id") Is DBNull.Value, DBNull.Value, Convert.ToInt32(row("lte_id")))
+                                dst("cell_id") = If(row("cell_id") Is DBNull.Value, DBNull.Value, Convert.ToInt64(row("cell_id")))
+
+                                filled.Add(ch)
+                                Exit For
+                            End If
+                        Next
                     Next
-                    Return False
-                End Function
-
-                For Each g In groups
-                    Dim allPairs As New List(Of KeyValuePair(Of Integer, Integer))()
-                    For Each r In g.grp
-                        Dim nbRaw As String = If(r("nb_earfcn") Is DBNull.Value, "", r("nb_earfcn").ToString())
-                        If Not String.IsNullOrWhiteSpace(nbRaw) Then
-                            allPairs.AddRange(ParseNbEarfcn(nbRaw))
-                        End If
-                    Next
-
-                    Dim recEarfcn? As Integer = RecommendEarfcnFromPairs(allPairs)
-                    If Not recEarfcn.HasValue Then
-                        Dim anyEarfcn = g.grp.Select(Function(r) If(r("earfcn") Is DBNull.Value, CType(Nothing, Integer?), Convert.ToInt32(r("earfcn")))).Where(Function(v) v.HasValue).Select(Function(v) v.Value).DefaultIfEmpty().FirstOrDefault()
-                        If anyEarfcn <> 0 Then recEarfcn = anyEarfcn
-                    End If
-                    If Not recEarfcn.HasValue Then Continue For
-
-                    Dim bandInfo = MapEarfcnToBandInfo(recEarfcn.Value)
-                    If String.IsNullOrEmpty(bandInfo.bx) Then Continue For
-
-                    Dim targetCh = ChannelsForBandCode(bandInfo.bx)
-                    If targetCh.Length = 0 Then Continue For
-
-                    Dim rep As DataRow =
-                    g.grp.FirstOrDefault(Function(r)
-                                             Return (Not r("earfcn") Is DBNull.Value) AndAlso Convert.ToInt32(r("earfcn")) = recEarfcn.Value
-                                         End Function)
-                    If rep Is Nothing Then
-                        rep = g.grp.First()
-                    End If
-
-                    assignToFirstFree(targetCh,
-                    Sub(dst As DataRow)
-                        dst("band") = bandInfo.bx & " (" & bandInfo.mhz & " MHz)"
-
-                        If g.Key.MCC >= 0 Then dst("mcc") = g.Key.MCC Else dst("mcc") = DBNull.Value
-                        If g.Key.MNC >= 0 Then dst("mnc") = g.Key.MNC Else dst("mnc") = DBNull.Value
-
-                        dst("earfcn") = recEarfcn.Value
-
-                        If rep.Table.Columns.Contains("lte_id") AndAlso Not (rep("lte_id") Is DBNull.Value) Then
-                            dst("lte_id") = Convert.ToInt32(rep("lte_id"))
-                        Else
-                            dst("lte_id") = DBNull.Value
-                        End If
-
-                        If rep.Table.Columns.Contains("cell_id") AndAlso Not (rep("cell_id") Is DBNull.Value) Then
-                            dst("cell_id") = Convert.ToInt64(rep("cell_id"))
-                        Else
-                            dst("cell_id") = DBNull.Value
-                        End If
-                    End Sub)
                 Next
 
                 DataGridView1.DataSource = result
@@ -260,12 +215,12 @@ Public Class Form5
                 DataGridView1.Columns.AddRange({colChannel, colMcc, colMnc, colBand, colEarfcn, colLteId, colCellId})
 
                 Dim applyColumn As New DataGridViewButtonColumn() With {
-                .Name = "apply",
-                .HeaderText = "Apply Choice",
-                .Text = "Apply",
-                .UseColumnTextForButtonValue = False,
-                .Width = 90
-            }
+                    .Name = "apply",
+                    .HeaderText = "Apply Choice",
+                    .Text = "Apply",
+                    .UseColumnTextForButtonValue = False,
+                    .Width = 90
+                }
                 applyColumn.DefaultCellStyle.BackColor = Color.Green
                 applyColumn.DefaultCellStyle.ForeColor = Color.White
                 DataGridView1.Columns.Add(applyColumn)
@@ -275,9 +230,10 @@ Public Class Form5
             End Using
 
         Catch ex As Exception
-            Console.WriteLine("Error loading LTE channels: " & ex.StackTrace)
+            Console.WriteLine("Error loading LTE channels: " & ex.Message)
         End Try
     End Sub
+
 
     Private Function ChannelDefaultBand(channel As Integer) As String
         Select Case channel
@@ -294,7 +250,7 @@ Public Class Form5
             Case 10
                 Return "Band 40 (TDD 2300 MHz)"
             Case 11, 12
-                Return "Band 12/13 (700 MHz)"
+                Return "Band 28 (700 MHz)"
             Case 13, 14
                 Return "Band 7 (2600 MHz)"
             Case Else
