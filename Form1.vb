@@ -42,6 +42,10 @@ Public Class Form1
     Private isListening As Boolean = False
     Private udp As UdpClient
     Private operatorFilter As List(Of String)
+    Private operatorFilter1 As List(Of String)
+    Private selectedProvider As String = ""
+    Private selectedRowIndex As Integer = -1
+    Private selectedGridView As DataGridView = Nothing
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -80,6 +84,10 @@ Public Class Form1
             StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
 
+            AddHandler DataGridView3.SelectionChanged, AddressOf DataGridView_SelectionChanged
+            AddHandler DataGridView2.SelectionChanged, AddressOf DataGridView_SelectionChanged
+            AddHandler DataGridView1.SelectionChanged, AddressOf DataGridView_SelectionChanged
+
             StartUdpListener()
 
             Task.Run(Sub() UpdateButtonColors())
@@ -87,6 +95,56 @@ Public Class Form1
             MessageBox.Show("Database setup failed: " & ex.StackTrace, "Error")
         End Try
     End Sub
+
+    Private Sub DataGridView_SelectionChanged(sender As Object, e As EventArgs)
+        Dim dgv As DataGridView = TryCast(sender, DataGridView)
+        If dgv Is Nothing Then Exit Sub
+
+        operatorFilter = New List(Of String)()
+
+        If dgv.SelectedRows Is Nothing OrElse dgv.SelectedRows.Count = 0 Then Exit Sub
+
+        Dim selectedRow As DataGridViewRow = dgv.SelectedRows(0)
+        If selectedRow Is Nothing OrElse selectedRow.IsNewRow Then Exit Sub
+
+        Dim providerName As String = Nothing
+
+
+        If dgv Is DataGridView3 Then
+            providerName = Convert.ToString(selectedRow.Cells("Column28").Value)
+        ElseIf dgv Is DataGridView1 Then
+            providerName = Convert.ToString(selectedRow.Cells("Column5").Value)
+        ElseIf dgv Is DataGridView2 Then
+            providerName = Convert.ToString(selectedRow.Cells("Column16").Value)
+        End If
+
+        If Not String.IsNullOrEmpty(providerName) Then
+            operatorFilter.Add(providerName)
+            selectedProvider = providerName
+            selectedRowIndex = selectedRow.Index
+            selectedGridView = dgv
+        End If
+    End Sub
+
+
+    Private Sub DataGridView_CellClick(sender As Object, e As DataGridViewCellEventArgs)
+        Dim dgv As DataGridView = CType(sender, DataGridView)
+
+        If e.RowIndex >= 0 AndAlso dgv Is selectedGridView AndAlso e.RowIndex = selectedRowIndex Then
+            ClearDataGridViewSelection()
+        End If
+    End Sub
+
+    Public Sub ClearDataGridViewSelection()
+        If selectedGridView IsNot Nothing Then
+            selectedGridView.ClearSelection()
+            operatorFilter = New List(Of String)()
+            selectedProvider = ""
+            selectedRowIndex = -1
+            selectedGridView = Nothing
+        End If
+    End Sub
+
 
     Private Function GetOrCreateClient(address As String) As UdpClient
         If Not udpClients.ContainsKey(address) Then
@@ -3069,12 +3127,14 @@ Public Class Form1
             End If
         Next
 
-        operatorFilter = selectedItems
+        operatorFilter1 = selectedItems
         ApplyFilterToDataGridViews()
     End Sub
 
+
+
     Private Sub ApplyFilterToDataGridViews()
-        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
+        If operatorFilter1 Is Nothing OrElse operatorFilter1.Count = 0 Then
             If DataGridView1.DataSource IsNot Nothing AndAlso TypeOf DataGridView1.DataSource Is DataTable Then
                 CType(DataGridView1.DataSource, DataTable).DefaultView.RowFilter = ""
             End If
@@ -3085,9 +3145,9 @@ Public Class Form1
                 CType(DataGridView3.DataSource, DataTable).DefaultView.RowFilter = ""
             End If
         Else
-            FilterDataGridView(DataGridView1, operatorFilter)
-            FilterDataGridView(DataGridView2, operatorFilter)
-            FilterDataGridView(DataGridView3, operatorFilter)
+            FilterDataGridView(DataGridView1, operatorFilter1)
+            FilterDataGridView(DataGridView2, operatorFilter1)
+            FilterDataGridView(DataGridView3, operatorFilter1)
         End If
     End Sub
 
@@ -3120,7 +3180,6 @@ Public Class Form1
                 Next
             End If
 
-            ' Apply filter
             If Not String.IsNullOrEmpty(filterExpression) Then
                 dt.DefaultView.RowFilter = filterExpression
             Else
