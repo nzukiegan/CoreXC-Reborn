@@ -677,8 +677,8 @@ Public Class Form1
 
                 Console.WriteLine("nbFreq: " & nbEarfcn)
 
-                InsertLteData(providerName, plmn, mcc, mnc, band, pri, earfcn, nbEarfcn, tac, cellId, rsrp)
-                UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pri, earfcn, nbEarfcn, tac, cellId, rsrp)
+                InsertLteData(providerName, plmn, mcc, mnc, band, pci, earfcn, nbEarfcn, tac, cellId, rsrp)
+                UpdateLteDataGridView(providerName, plmn, mcc, mnc, band, pci, earfcn, nbEarfcn, tac, cellId, rsrp)
             Else
                 If line.IndexOf("LteSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
                    line.IndexOf("SNIFER", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
@@ -802,11 +802,11 @@ Public Class Form1
     End Sub
 
     Private Sub InsertLteData(providerName As String, plmn As String, mcc As Integer, mnc As Integer,
-                             band As String, pri As Integer, earfcn As Integer, nbEarfcn As String,
+                             band As String, pci As Integer, earfcn As Integer, nbEarfcn As String,
                              lac As Integer, cellId As Long, rsrp As Double)
         Using connection As New SqlConnection(connectionString)
             connection.Open()
-            Dim query As String = "INSERT INTO lte_cells (provider_name, plmn, mcc, mnc, band, pri, earfcn, nb_earfcn, lac, cell_id, rsrp) " &
+            Dim query As String = "INSERT INTO lte_cells (provider_name, plmn, mcc, mnc, band, pci, earfcn, nb_earfcn, lac, cell_id, rsrp) " &
                                  "VALUES (@providerName, @plmn, @mcc, @mnc, @band, @pri, @earfcn, @nbEarfcn, @lac, @cellId, @rsrp)"
 
             Using command As New SqlCommand(query, connection)
@@ -815,7 +815,7 @@ Public Class Form1
                 command.Parameters.AddWithValue("@mcc", mcc)
                 command.Parameters.AddWithValue("@mnc", mnc)
                 command.Parameters.AddWithValue("@band", band)
-                command.Parameters.AddWithValue("@pri", pri)
+                command.Parameters.AddWithValue("@pci", pci)
                 command.Parameters.AddWithValue("@earfcn", earfcn)
                 command.Parameters.AddWithValue("@nbEarfcn", nbEarfcn)
                 command.Parameters.AddWithValue("@lac", lac)
@@ -986,6 +986,7 @@ Public Class Form1
         row("band") = If(String.IsNullOrEmpty(band), String.Empty, band)
         row("earfcn") = If(String.IsNullOrEmpty(earfcn), String.Empty, earfcn)
         row("nb_earfcn") = If(String.IsNullOrEmpty(nbEarfcn), String.Empty, nbEarfcn)
+        row("pci") = If(pci.HasValue, pci.Value, DBNull.Value)
         row("lac") = If(lac.HasValue, lac.Value, DBNull.Value)
         row("rsrp") = If(rsrp.HasValue, rsrp.Value, DBNull.Value)
 
@@ -2068,6 +2069,7 @@ Public Class Form1
         DataGridView3.Columns("Column30").DataPropertyName = "mcc"
         DataGridView3.Columns("Column31").DataPropertyName = "mnc"
         DataGridView3.Columns("Column32").DataPropertyName = "band"
+        DataGridView3.Columns("Column37").DataPropertyName = "pci"
         DataGridView3.Columns("Column38").DataPropertyName = "nb_earfcn"
         DataGridView3.Columns("Column34").DataPropertyName = "rat"
         DataGridView3.Columns("Column35").DataPropertyName = "lac"

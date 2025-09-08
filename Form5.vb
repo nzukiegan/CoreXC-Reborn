@@ -122,7 +122,7 @@ Public Class Form5
                 End If
 
 
-                Dim lteQuery As String = "SELECT lte_id, provider_name, plmn, mcc, mnc, band, pri, earfcn, nb_earfcn, rat, lac, cell_id, rsrp, [Timestamp]
+                Dim lteQuery As String = "SELECT lte_id, provider_name, plmn, mcc, mnc, band, earfcn, nb_earfcn, cell_id, rsrp, [Timestamp]
                           FROM lte_cells"
 
                 If filters.Count > 0 AndAlso Not filters.Contains("All") Then
@@ -169,13 +169,30 @@ Public Class Form5
                 Dim filled As New HashSet(Of Integer)()
 
                 For Each row As DataRow In lteTable.Rows
+                    Dim earfcnList As New List(Of Integer)()
+
+                    If Not row.IsNull("earfcn") Then
+                        Dim mainStr = row("earfcn").ToString().Trim()
+                        Dim mainVal As Integer
+                        If Integer.TryParse(mainStr, mainVal) Then
+                            earfcnList.Add(mainVal)
+                        End If
+                    End If
+
                     Dim nbRaw As String = If(row("nb_earfcn") Is DBNull.Value, "", row("nb_earfcn").ToString())
-                    If String.IsNullOrWhiteSpace(nbRaw) Then Continue For
+                    If Not String.IsNullOrWhiteSpace(nbRaw) Then
+                        Dim matches = System.Text.RegularExpressions.Regex.Matches(nbRaw, "\[(\d+),\s*\d+\]")
+                        For Each m As Match In matches
+                            Dim nbVal As Integer
+                            If Integer.TryParse(m.Groups(1).Value, nbVal) Then
+                                earfcnList.Add(nbVal)
+                            End If
+                        Next
+                    End If
 
-                    Dim matches = System.Text.RegularExpressions.Regex.Matches(nbRaw, "\[(\d+),\s*\d+\]")
-                    For Each m As Match In matches
-                        Dim earfcn As Integer = Convert.ToInt32(m.Groups(1).Value)
+                    If earfcnList.Count = 0 Then Continue For
 
+                    For Each earfcn As Integer In earfcnList
                         Dim bandInfo = MapEarfcnToBandInfo(earfcn)
                         If String.IsNullOrEmpty(bandInfo.bx) Then Continue For
 
@@ -199,6 +216,7 @@ Public Class Form5
                         Next
                     Next
                 Next
+
 
                 DataGridView1.DataSource = result
                 DataGridView1.AutoGenerateColumns = False

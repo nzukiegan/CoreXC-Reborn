@@ -171,6 +171,7 @@ Public Class DatabaseInitializer
         sb.AppendLine("    mnc INT,")
         sb.AppendLine("    band NVARCHAR(50),")
         sb.AppendLine("    pri INT,")
+        sb.AppendLine("    pci INT,")
         sb.AppendLine("    earfcn INT,")
         sb.AppendLine("    nb_earfcn NVARCHAR(100),")
         sb.AppendLine("    rat NVARCHAR(10) DEFAULT 'LTE',")
