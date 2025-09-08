@@ -619,7 +619,7 @@ Public Class Form1
                 Dim rssi As Double = If(rssiMatch.Success, Double.Parse(rssiMatch.Groups(1).Value), 0)
 
                 Dim providerName As String = GetOperatorCodeByPLMN(plmn)
-                Dim band As String = GetBand(arfcn)
+                Dim band As String = MapArfcnToBand(arfcn)
 
                 Dim nbFreq As String = If(nbFreqMatch.Success, "[" & nbFreqMatch.Groups(1).Value.Trim() & "]", "[]")
 
@@ -643,6 +643,16 @@ Public Class Form1
             Debug.WriteLine("Error processing GSM data: " & ex.ToString())
         End Try
     End Sub
+
+    Private Function MapArfcnToBand(arfcn As Integer) As String
+        If arfcn >= 1 AndAlso arfcn <= 124 Then
+            Return "GSM 900"
+        ElseIf arfcn >= 512 AndAlso arfcn <= 885 Then
+            Return "GSM 1800"
+        Else
+            Return "Unknown"
+        End If
+    End Function
 
     Private Sub ProcessLteData(line As String)
         SafeUpdateLabel(line)

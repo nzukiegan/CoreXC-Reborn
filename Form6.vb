@@ -168,16 +168,6 @@ Public Class Form6
         End Select
     End Function
 
-    Private Function MapArfcnToBand(arfcn As Integer) As String
-        If arfcn >= 1 AndAlso arfcn <= 124 Then
-            Return "GSM 900"
-        ElseIf arfcn >= 512 AndAlso arfcn <= 885 Then
-            Return "GSM 1800"
-        Else
-            Return "Unknown"
-        End If
-    End Function
-
     Private Function ChannelsForGsmBand(band As String) As Integer()
         Select Case band
             Case "GSM 900" : Return {1, 2}
@@ -196,6 +186,7 @@ Public Class Form6
             If btnCell Is Nothing Then Continue For
 
             Dim bandObj = row.Cells("band").Value
+            Console.WriteLine("Band to select " & bandObj?.ToString())
             Dim targetCh() As Integer = ChannelsForGsmBand(bandObj?.ToString())
 
             If targetCh.Length = 0 Then
