@@ -43,6 +43,8 @@ Public Class Form1
     Private udp As UdpClient
     Private operatorFilter As List(Of String)
     Private operatorFilter1 As List(Of String)
+    Private operatorFilter2 As List(Of String)
+    Private operatorFilter3 As List(Of String)
     Private selectedProvider As String = ""
     Private selectedRowIndex As Integer = -1
     Private selectedGridView As DataGridView = Nothing
@@ -100,7 +102,7 @@ Public Class Form1
         Dim dgv As DataGridView = TryCast(sender, DataGridView)
         If dgv Is Nothing Then Exit Sub
 
-        operatorFilter = New List(Of String)()
+
 
         If dgv.SelectedRows Is Nothing OrElse dgv.SelectedRows.Count = 0 Then Exit Sub
 
@@ -111,15 +113,24 @@ Public Class Form1
 
 
         If dgv Is DataGridView3 Then
+            operatorFilter = New List(Of String)()
             providerName = Convert.ToString(selectedRow.Cells("Column28").Value)
         ElseIf dgv Is DataGridView1 Then
+            operatorFilter2 = New List(Of String)()
             providerName = Convert.ToString(selectedRow.Cells("Column5").Value)
         ElseIf dgv Is DataGridView2 Then
+            operatorFilter3 = New List(Of String)()
             providerName = Convert.ToString(selectedRow.Cells("Column16").Value)
         End If
 
         If Not String.IsNullOrEmpty(providerName) Then
-            operatorFilter.Add(providerName)
+            If dgv Is DataGridView3 Then
+                operatorFilter.Add(providerName)
+            ElseIf dgv Is DataGridView1 Then
+                operatorFilter2.Add(providerName)
+            ElseIf dgv Is DataGridView2 Then
+                operatorFilter3.Add(providerName)
+            End If
             selectedProvider = providerName
             selectedRowIndex = selectedRow.Index
             selectedGridView = dgv
@@ -807,7 +818,7 @@ Public Class Form1
         Using connection As New SqlConnection(connectionString)
             connection.Open()
             Dim query As String = "INSERT INTO lte_cells (provider_name, plmn, mcc, mnc, band, pci, earfcn, nb_earfcn, lac, cell_id, rsrp) " &
-                                 "VALUES (@providerName, @plmn, @mcc, @mnc, @band, @pri, @earfcn, @nbEarfcn, @lac, @cellId, @rsrp)"
+                                 "VALUES (@providerName, @plmn, @mcc, @mnc, @band, @pci, @earfcn, @nbEarfcn, @lac, @cellId, @rsrp)"
 
             Using command As New SqlCommand(query, connection)
                 command.Parameters.AddWithValue("@providerName", providerName)
@@ -1037,7 +1048,6 @@ Public Class Form1
         Try
             udp.Close()
         Catch ex As Exception
-            ' Ignore errors on close
         End Try
     End Sub
 
@@ -1765,12 +1775,12 @@ Public Class Form1
             End If
         Next
 
-        If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
+        If operatorFilter2 Is Nothing OrElse operatorFilter2.Count = 0 Then
             Using f6 As New Form6()
                 f6.ShowDialog(Me)
             End Using
         Else
-            Using f6 As New Form6(operatorFilter)
+            Using f6 As New Form6(operatorFilter2)
                 f6.ShowDialog(Me)
             End Using
         End If
@@ -3132,8 +3142,6 @@ Public Class Form1
         operatorFilter1 = selectedItems
         ApplyFilterToDataGridViews()
     End Sub
-
-
 
     Private Sub ApplyFilterToDataGridViews()
         If operatorFilter1 Is Nothing OrElse operatorFilter1.Count = 0 Then
