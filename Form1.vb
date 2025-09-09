@@ -14,6 +14,7 @@ Imports System.Windows.Drawing
 Imports System.Windows.Forms.DataVisualization.Charting
 Imports System.Security.Authentication.ExtendedProtection
 Imports System.Runtime.Remoting.Channels
+Imports System.Text.Json
 
 Public Class Form1
 
@@ -48,6 +49,13 @@ Public Class Form1
     Private selectedProvider As String = ""
     Private selectedRowIndex As Integer = -1
     Private selectedGridView As DataGridView = Nothing
+    Private providerLogos As New Dictionary(Of String, Image)(StringComparer.OrdinalIgnoreCase) From {
+        {"indosat", My.Resources.indosat_logo},
+        {"smarfren", My.Resources.Smartfren},
+        {"telkomsel", My.Resources.Telkomsel},
+        {"three", My.Resources.three},
+        {"xlcomindo", My.Resources.XL_Image}
+    }
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -63,7 +71,6 @@ Public Class Form1
             LoadDataToGridViews()
             ApplyFilterToDataGridViews()
             LoadBaseStationData()
-            LoadBaseStationData1()
             AddInputConstraints()
             AddAdvancedConstraints()
             SetupValidationEvents()
@@ -89,6 +96,10 @@ Public Class Form1
             AddHandler DataGridView3.SelectionChanged, AddressOf DataGridView_SelectionChanged
             AddHandler DataGridView2.SelectionChanged, AddressOf DataGridView_SelectionChanged
             AddHandler DataGridView1.SelectionChanged, AddressOf DataGridView_SelectionChanged
+            AddHandler ComboBox12.SelectedIndexChanged, AddressOf TechnologyChanged_CH1
+            AddHandler ComboBox13.SelectedIndexChanged, AddressOf TechnologyChanged_CH2
+            AddHandler ComboBox14.SelectedIndexChanged, AddressOf TechnologyChanged_CH3
+            AddHandler ComboBox15.SelectedIndexChanged, AddressOf TechnologyChanged_CH4
 
             StartUdpListener()
 
@@ -96,6 +107,53 @@ Public Class Form1
         Catch ex As Exception
             MessageBox.Show("Database setup failed: " & ex.StackTrace, "Error")
         End Try
+    End Sub
+
+    Private Sub ChannelAnalyzer_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ChannelAnalyzer.SelectedIndexChanged
+        If ChannelAnalyzer.SelectedTab Is TabPage2 Then
+            LoadBaseStationData1()
+        End If
+    End Sub
+
+
+    Private Sub TechnologyChanged_CH1(sender As Object, e As EventArgs)
+        If ComboBox12.SelectedItem IsNot Nothing Then
+            If ComboBox12.SelectedItem.ToString() = "LTE - FDD" Then
+                TextBox97.Enabled = False
+            ElseIf ComboBox12.SelectedItem.ToString() = "GSM" Then
+                TextBox97.Enabled = True
+            End If
+        End If
+    End Sub
+
+    Private Sub TechnologyChanged_CH2(sender As Object, e As EventArgs)
+        If ComboBox13.SelectedItem IsNot Nothing Then
+            If ComboBox13.SelectedItem.ToString() = "LTE - FDD" Then
+                TextBox98.Enabled = False
+            ElseIf ComboBox13.SelectedItem.ToString() = "GSM" Then
+                TextBox98.Enabled = True
+            End If
+        End If
+    End Sub
+
+    Private Sub TechnologyChanged_CH3(sender As Object, e As EventArgs)
+        If ComboBox14.SelectedItem IsNot Nothing Then
+            If ComboBox14.SelectedItem.ToString() = "LTE - FDD" Then
+                TextBox102.Enabled = False
+            ElseIf ComboBox14.SelectedItem.ToString() = "GSM" Then
+                TextBox102.Enabled = True
+            End If
+        End If
+    End Sub
+
+    Private Sub TechnologyChanged_CH4(sender As Object, e As EventArgs)
+        If ComboBox15.SelectedItem IsNot Nothing Then
+            If ComboBox15.SelectedItem.ToString() = "LTE - FDD" Then
+                TextBox106.Enabled = False
+            ElseIf ComboBox15.SelectedItem.ToString() = "GSM" Then
+                TextBox106.Enabled = True
+            End If
+        End If
     End Sub
 
     Private Sub DataGridView_SelectionChanged(sender As Object, e As EventArgs)
@@ -168,12 +226,9 @@ Public Class Form1
         button.Enabled = False
 
         Try
-            Dim udp = GetOrCreateClient(address)
-            Dim remoteEP As New IPEndPoint(IPAddress.Parse(address), 9001)
-
             Dim command As String = "StartCell"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
-            Await udp.SendAsync(data, data.Length, remoteEP)
+            udp.Send(data, data.Length, address, 9001)
 
         Catch ex As Exception
             Console.WriteLine($"Error communicating with {address}: {ex.Message}")
@@ -187,12 +242,9 @@ Public Class Form1
         Dim originalText As String = button.Text
 
         Try
-            Dim udp = GetOrCreateClient(address)
-            Dim remoteEP As New IPEndPoint(IPAddress.Parse(address), 9001)
-
             Dim command As String = "StopCell"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
-            Await udp.SendAsync(data, data.Length, remoteEP)
+            udp.Send(data, data.Length, address, 9001)
 
         Catch ex As SocketException
             MessageBox.Show($"Could not connect to cell at {address}. Please check the connection.", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
@@ -391,7 +443,7 @@ Public Class Form1
                     Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
                     Dim response As String = Encoding.ASCII.GetString(result.Buffer)
                     Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
-
+                    Console.WriteLine(response)
                     If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
                         Me.Invoke(Sub()
                                       processResponse(response)
@@ -409,6 +461,89 @@ Public Class Form1
         End Function)
     End Sub
 
+    Public Shared Function ProcessLogEntry(logLine As String, entryNo As Integer, source As String) As Dictionary(Of String, Object)
+        Dim pattern As String =
+            "(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+time\[(?<time>\d+)\]\s+" &
+            "taType\[(?<event>[^\]]+)\]\s+imsi\[(?<imsi>\d+)\]\s+" &
+            "imei\[(?<imei>\d+)\]\s+ulSig\[(?<ulsig>\d+)\]\s+" &
+            "ulTa\[(?<ta>\d+)\]\s+bl_indi\[(?<count>\d+)\]\s+" &
+            "tmsi\[(?<tmsi>[0-9A-F]+)\]\s+lac\[(?<lac>\d+)\]\s+" &
+            "dlrscp\[(?<rscp>\d+)\]"
+
+        Dim m As Match = Regex.Match(logLine, pattern)
+        If Not m.Success Then
+            Throw New Exception("Log line format not recognized.")
+        End If
+
+        Dim imsi As String = m.Groups("imsi").Value
+        Dim mcc As String = imsi.Substring(0, 3)
+        Dim mnc As String = imsi.Substring(3, 2)
+
+        Dim dbHelper As New DatabaseHelper()
+        Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
+
+        Dim row As New Dictionary(Of String, Object) From {
+            {"No", entryNo},
+            {"date_event", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")},
+            {"location_name", m.Groups("lac").Value},
+            {"source", source},
+            {"provider_name", providerName},
+            {"mcc", mcc},
+            {"mnc", mnc},
+            {"imsi", imsi},
+            {"imei", m.Groups("imei").Value},
+            {"guti", "-"},
+            {"count", m.Groups("count").Value},
+            {"signal_Level", m.Groups("rscp").Value},
+            {"time_advance", m.Groups("ta").Value},
+            {"phone_model", "(missing)"},
+            {"event", m.Groups("event").Value},
+            {"longitude", ""},
+            {"latitude", ""}
+        }
+
+        Return row
+    End Function
+
+    Public Sub InsertScanResult(row As Dictionary(Of String, Object))
+        Dim columns = String.Join(",", row.Keys)
+        Dim parameters = String.Join(",", row.Keys.Select(Function(k) "@" & k))
+
+        Dim sql As String = $"INSERT INTO scan_results ({columns}) VALUES ({parameters})"
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand(sql, conn)
+                For Each kvp In row
+                    cmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
+                Next
+                cmd.ExecuteNonQuery()
+            End Using
+        End Using
+    End Sub
+
+
+    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, ByRef lat As String, ByRef lon As String)
+        Dim apiKey As String = "YOUR_OPENCELLID_API_KEY"
+        Dim url As String = $"https://opencellid.org/cell/get?key={apiKey}&mcc={mcc}&mnc={mnc}&lac={lac}&cellid=0&format=json"
+
+        Try
+            Dim client As New WebClient()
+            Dim response As String = client.DownloadString(url)
+
+            Dim doc As JsonDocument = JsonDocument.Parse(response)
+            If doc.RootElement.TryGetProperty("lat", Nothing) AndAlso doc.RootElement.TryGetProperty("lon", Nothing) Then
+                lat = doc.RootElement.GetProperty("lat").GetDouble().ToString()
+                lon = doc.RootElement.GetProperty("lon").GetDouble().ToString()
+            Else
+                lat = ""
+                lon = ""
+            End If
+        Catch ex As Exception
+            lat = ""
+            lon = ""
+        End Try
+    End Sub
 
     Private Sub StopUdpListener()
         listenerRunning = False
@@ -1135,14 +1270,14 @@ Public Class Form1
     Public Sub LoadBaseStationData1()
         Try
             ' Load data for all base station channels
-            LoadBaseStationChannel(1, TextBox4, TextBox5, TextBox6, TextBox7, TextBox9, TextBox8, TextBox40, ComboBox12)
-            LoadBaseStationChannel(2, TextBox15, TextBox14, TextBox12, TextBox13, TextBox10, TextBox11, TextBox41, ComboBox13)
-            LoadBaseStationChannel(3, TextBox21, TextBox20, TextBox18, TextBox19, TextBox16, TextBox17, TextBox42, ComboBox14)
-            LoadBaseStationChannel(4, TextBox27, TextBox26, TextBox24, TextBox25, TextBox22, TextBox23, TextBox43, ComboBox15)
-            LoadBaseStationChannel(5, TextBox33, TextBox32, TextBox30, TextBox31, TextBox28, TextBox29, TextBox44, ComboBox16)
-            LoadBaseStationChannel(6, TextBox39, TextBox38, TextBox36, TextBox37, TextBox34, TextBox35, TextBox45, ComboBox17)
-            LoadBaseStationChannel(7, TextBox52, TextBox51, TextBox49, TextBox50, TextBox47, TextBox48, TextBox46, ComboBox18)
-            LoadBaseStationChannel(8, TextBox59, TextBox58, TextBox56, TextBox57, TextBox54, TextBox55, TextBox53, ComboBox19)
+            LoadBaseStationChannel1(1, TextBox4, TextBox5, TextBox6, TextBox7, TextBox9, TextBox8, TextBox40, ComboBox12, PictureBox2)
+            LoadBaseStationChannel1(2, TextBox15, TextBox14, TextBox12, TextBox13, TextBox10, TextBox11, TextBox41, ComboBox13, PictureBox3)
+            LoadBaseStationChannel1(3, TextBox21, TextBox20, TextBox18, TextBox19, TextBox16, TextBox17, TextBox42, ComboBox14, PictureBox1)
+            LoadBaseStationChannel1(4, TextBox27, TextBox26, TextBox24, TextBox25, TextBox22, TextBox23, TextBox43, ComboBox15, PictureBox5)
+            LoadBaseStationChannel1(5, TextBox33, TextBox32, TextBox30, TextBox31, TextBox28, TextBox29, TextBox44, ComboBox16, PictureBox6)
+            LoadBaseStationChannel1(6, TextBox39, TextBox38, TextBox36, TextBox37, TextBox34, TextBox35, TextBox45, ComboBox17, PictureBox7)
+            LoadBaseStationChannel1(7, TextBox52, TextBox51, TextBox49, TextBox50, TextBox47, TextBox48, TextBox46, ComboBox18, PictureBox4)
+            LoadBaseStationChannel1(8, TextBox59, TextBox58, TextBox56, TextBox57, TextBox54, TextBox55, TextBox53, ComboBox19, PictureBox12)
 
             Try
                 LoadChannels9And10()
@@ -1155,10 +1290,10 @@ Public Class Form1
     )
             End Try
 
-            LoadBaseStationChannel(11, TextBox65, TextBox66, TextBox63, TextBox64, TextBox61, TextBox62, TextBox60, ComboBox21)
-            LoadBaseStationChannel(12, TextBox72, TextBox73, TextBox70, TextBox71, TextBox68, TextBox69, TextBox67, ComboBox22)
-            LoadBaseStationChannel(13, TextBox79, TextBox80, TextBox77, TextBox78, TextBox75, TextBox76, TextBox74, ComboBox23)
-            LoadBaseStationChannel(14, TextBox86, TextBox87, TextBox84, TextBox85, TextBox82, TextBox83, TextBox81, ComboBox24)
+            LoadBaseStationChannel1(11, TextBox65, TextBox66, TextBox63, TextBox64, TextBox61, TextBox62, TextBox60, ComboBox21, PictureBox8)
+            LoadBaseStationChannel1(12, TextBox72, TextBox73, TextBox70, TextBox71, TextBox68, TextBox69, TextBox67, ComboBox22, PictureBox11)
+            LoadBaseStationChannel1(13, TextBox79, TextBox80, TextBox77, TextBox78, TextBox75, TextBox76, TextBox74, ComboBox23, PictureBox9)
+            LoadBaseStationChannel1(14, TextBox86, TextBox87, TextBox84, TextBox85, TextBox82, TextBox83, TextBox81, ComboBox24, PictureBox13)
 
         Catch ex As Exception
             MessageBox.Show("Error loading base station data: " & ex.StackTrace, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
@@ -1168,7 +1303,6 @@ Public Class Form1
     Private Sub LoadBaseStationChannel(channelNumber As Integer, txtMCC As TextBox, txtMNC As TextBox,
                                       txtCID As TextBox, txtLAC As TextBox, txtCount As TextBox,
                                       txtEarfcn As TextBox, txtTechnology As TextBox, cmbBand As ComboBox)
-        Console.WriteLine("Loading base station channel")
         Using connection As New SqlConnection(connectionString)
             connection.Open()
 
@@ -1180,7 +1314,6 @@ Public Class Form1
 
                 Using reader As SqlDataReader = command.ExecuteReader()
                     If reader.Read() Then
-                        ' Populate text fields
                         txtMCC.Text = If(reader("mcc") IsNot DBNull.Value, reader("mcc").ToString(), "")
                         txtMNC.Text = If(reader("mnc") IsNot DBNull.Value, reader("mnc").ToString(), "")
                         txtCID.Text = If(reader("cid") IsNot DBNull.Value, reader("cid").ToString(), "")
@@ -1190,29 +1323,113 @@ Public Class Form1
                             txtEarfcn.Text = reader("earfcn").ToString()
                         End If
 
-                        ' Set technology type
                         If reader("is_gsm") IsNot DBNull.Value AndAlso CBool(reader("is_gsm")) Then
                             txtTechnology.Text = "GSM"
                         ElseIf reader("is_lte") IsNot DBNull.Value AndAlso CBool(reader("is_lte")) Then
-                            txtTechnology.Text = "LTE"
+                            txtTechnology.Text = "LTE-FDD"
                         ElseIf reader("is_wcdma") IsNot DBNull.Value AndAlso CBool(reader("is_wcdma")) Then
                             txtTechnology.Text = "WCDMA"
                         Else
                             txtTechnology.Text = "Unknown"
                         End If
 
-                        ' Set band in combobox if available
                         If reader("band") IsNot DBNull.Value Then
                             cmbBand.SelectedItem = reader("band").ToString()
                         End If
                     Else
-                        ' Clear fields if no data found
                         ClearTextBoxes(txtMCC, txtMNC, txtCID, txtLAC, txtCount, txtEarfcn, txtTechnology)
                     End If
                 End Using
             End Using
         End Using
     End Sub
+
+    Private Sub LoadBaseStationChannel1(channelNumber As Integer,
+                                  txtMCC As TextBox,
+                                  txtMNC As TextBox,
+                                  txtCID As TextBox,
+                                  txtLAC As TextBox,
+                                  txtCount As TextBox,
+                                  txtEarfcn As TextBox,
+                                  txtTechnology As TextBox,
+                                  cmbBand As ComboBox,
+                                  targetPictureBox As PictureBox)
+
+        Console.WriteLine("Loading base station channel")
+
+        Using connection As New SqlConnection(connectionString)
+            connection.Open()
+
+            Dim query As String = "SELECT mcc, mnc, cid, lac, count, earfcn, band, is_gsm, is_lte, is_wcdma 
+                               FROM base_stations WHERE channel_number = @channelNumber"
+
+            Using command As New SqlCommand(query, connection)
+                command.Parameters.AddWithValue("@channelNumber", channelNumber)
+
+                Using reader As SqlDataReader = command.ExecuteReader()
+                    If reader.Read() Then
+                        txtMCC.Text = If(reader("mcc") IsNot DBNull.Value, reader("mcc").ToString(), "")
+                        txtMNC.Text = If(reader("mnc") IsNot DBNull.Value, reader("mnc").ToString(), "")
+                        txtCID.Text = If(reader("cid") IsNot DBNull.Value, reader("cid").ToString(), "")
+                        txtLAC.Text = If(reader("lac") IsNot DBNull.Value, reader("lac").ToString(), "")
+                        txtCount.Text = If(reader("count") IsNot DBNull.Value, reader("count").ToString(), "")
+
+                        If txtEarfcn IsNot Nothing AndAlso reader("earfcn") IsNot DBNull.Value Then
+                            txtEarfcn.Text = reader("earfcn").ToString()
+                        End If
+
+                        If reader("is_gsm") IsNot DBNull.Value AndAlso CBool(reader("is_gsm")) Then
+                            txtTechnology.Text = "GSM"
+                        ElseIf reader("is_lte") IsNot DBNull.Value AndAlso CBool(reader("is_lte")) Then
+                            txtTechnology.Text = "LTE-FDD"
+                        ElseIf reader("is_wcdma") IsNot DBNull.Value AndAlso CBool(reader("is_wcdma")) Then
+                            txtTechnology.Text = "WCDMA"
+                        Else
+                            txtTechnology.Text = "Unknown"
+                        End If
+
+                        If reader("band") IsNot DBNull.Value Then
+                            cmbBand.SelectedItem = reader("band").ToString()
+                        End If
+
+                        Dim mcc As Integer = If(reader("mcc") IsNot DBNull.Value, CInt(reader("mcc")), -1)
+                        Dim mnc As Integer = If(reader("mnc") IsNot DBNull.Value, CInt(reader("mnc")), -1)
+
+                        If mcc > -1 AndAlso mnc > -1 Then
+                            reader.Close()
+
+                            Dim providerQuery As String = "SELECT TOP 1 operator_name, logo_url 
+                                                       FROM operators WHERE mcc = @mcc AND mnc = @mnc"
+
+                            Using providerCmd As New SqlCommand(providerQuery, connection)
+                                providerCmd.Parameters.AddWithValue("@mcc", mcc)
+                                providerCmd.Parameters.AddWithValue("@mnc", mnc)
+
+                                Using providerReader As SqlDataReader = providerCmd.ExecuteReader()
+                                    If providerReader.Read() Then
+                                        Dim providerName As String = providerReader("operator_name").ToString()
+
+                                        Dim logoImage As Image = Nothing
+                                        If providerLogos.TryGetValue(providerName, logoImage) Then
+                                            If targetPictureBox IsNot Nothing Then
+                                                targetPictureBox.Image = logoImage
+                                            End If
+                                        Else
+                                            Console.WriteLine("No logo resource found for provider: " & providerName)
+                                        End If
+                                    End If
+                                End Using
+                            End Using
+
+                        End If
+                    Else
+                        ClearTextBoxes(txtMCC, txtMNC, txtCID, txtLAC, txtCount, txtEarfcn, txtTechnology)
+                    End If
+                End Using
+            End Using
+        End Using
+    End Sub
+
 
     Public Sub LoadChannels9And10()
         Using connection As New SqlConnection(connectionString)
@@ -1238,7 +1455,7 @@ Public Class Form1
                 End If
             End Using
 
-            LoadBaseStationChannel(9, TextBox94, TextBox93, TextBox91, TextBox92, TextBox89, Nothing, TextBox88, ComboBox20)
+            LoadBaseStationChannel1(9, TextBox94, TextBox93, TextBox91, TextBox92, TextBox89, Nothing, TextBox88, ComboBox20, PictureBox10)
         End Using
     End Sub
 
@@ -2157,27 +2374,24 @@ Public Class Form1
     End Sub
 
     Private Sub PopulateChannel1(row As DataRow)
-        ' Store original values
         StoreOriginalValue("CH1_ComboBox", ComboBox12.Text)
         StoreOriginalValue("CH1_TextBox1", TextBox1.Text)
         StoreOriginalValue("CH1_TextBox2", TextBox2.Text)
         StoreOriginalValue("CH1_TextBox3", TextBox3.Text)
         StoreOriginalValue("CH1_TextBox97", TextBox97.Text)
 
-        ' CH1 900MHz
         TextBox1.Text = GetSafeString(row("mcc")) ' MCC
         TextBox2.Text = GetSafeString(row("mnc")) ' MNC
         TextBox3.Text = GetSafeString(row("earfcn")) ' EARFCN
         TextBox97.Text = GetSafeString(row("bsic")) ' BSIC
 
-        ' Set technology combo box
         If Convert.ToBoolean(row("is_gsm")) Then
             ComboBox12.Text = "GSM"
         ElseIf Convert.ToBoolean(row("is_lte")) Then
             ComboBox12.Text = "LTE - FDD"
+            TextBox97.Enabled = False
         End If
 
-        ' Set initial button state (no changes, disabled)
         buttonStates(1) = False
         UpdateButtonState(1, True)
     End Sub
@@ -2189,7 +2403,6 @@ Public Class Form1
         StoreOriginalValue("CH2_TextBox99", TextBox99.Text)
         StoreOriginalValue("CH2_TextBox98", TextBox98.Text)
 
-        ' CH2 900MHz
         TextBox101.Text = GetSafeString(row("mcc")) ' MCC
         TextBox100.Text = GetSafeString(row("mnc")) ' MNC
         TextBox99.Text = GetSafeString(row("earfcn")) ' EARFCN
@@ -2199,6 +2412,7 @@ Public Class Form1
             ComboBox13.Text = "GSM"
         ElseIf Convert.ToBoolean(row("is_lte")) Then
             ComboBox13.Text = "LTE - FDD"
+            TextBox98.Enabled = False
         End If
 
         buttonStates(2) = False
@@ -2212,7 +2426,6 @@ Public Class Form1
         StoreOriginalValue("CH3_TextBox103", TextBox103.Text)
         StoreOriginalValue("CH3_TextBox102", TextBox102.Text)
 
-        ' CH3 1800MHz
         TextBox105.Text = GetSafeString(row("mcc")) ' MCC
         TextBox104.Text = GetSafeString(row("mnc")) ' MNC
         TextBox103.Text = GetSafeString(row("earfcn")) ' EARFCN
@@ -2222,6 +2435,7 @@ Public Class Form1
             ComboBox14.Text = "GSM"
         ElseIf Convert.ToBoolean(row("is_lte")) Then
             ComboBox14.Text = "LTE - FDD"
+            TextBox102.Enabled = False
         End If
 
         buttonStates(3) = False
@@ -2235,16 +2449,16 @@ Public Class Form1
         StoreOriginalValue("CH4_TextBox107", TextBox107.Text)
         StoreOriginalValue("CH4_TextBox106", TextBox106.Text)
 
-        ' CH4 1800MHz
         TextBox109.Text = GetSafeString(row("mcc")) ' MCC
         TextBox108.Text = GetSafeString(row("mnc")) ' MNC
         TextBox107.Text = GetSafeString(row("earfcn")) ' EARFCN
-        TextBox106.Text = GetSafeString(row("bsic")) ' BSIC
+        TextBox106.Text = GetSafeString(row("bsic"))
 
         If Convert.ToBoolean(row("is_gsm")) Then
             ComboBox15.Text = "GSM"
         ElseIf Convert.ToBoolean(row("is_lte")) Then
             ComboBox15.Text = "LTE - FDD"
+            TextBox106.Enabled = False
         End If
 
         buttonStates(4) = False
@@ -2500,7 +2714,6 @@ Public Class Form1
     End Function
 
     Private Sub AddInputConstraints()
-        ' MCC fields (3 digits) - Complete all MCC fields
         AddNumericConstraint(TextBox1, 3) ' CH1 MCC
         AddNumericConstraint(TextBox101, 3) ' CH2 MCC
         AddNumericConstraint(TextBox105, 3) ' CH3 MCC
@@ -2629,7 +2842,6 @@ Public Class Form1
         Return {lbl, txt}
     End Function
 
-    ' Modify the SaveBaseStation method to update button state after save
     Private Sub SaveBaseStation(channel As Integer, technology As String, mccText As String, mncText As String, earfcnText As String, Optional bsicText As String = Nothing, Optional earfcn2Text As String = Nothing)
         Try
             Dim mcc = ParseInteger(mccText)
@@ -2638,35 +2850,28 @@ Public Class Form1
             Dim bsic = ParseInteger(bsicText)
             Dim earfcn2 = ParseInteger(earfcn2Text)
 
-            ' Determine technology type
             Dim isGsm = technology.Contains("GSM")
             Dim isLte = technology.Contains("LTE")
             Dim isWcdma = technology.Contains("WCDMA")
 
-            ' Check if record already exists for this channel
             Dim existingRecordId As Integer? = GetBaseStationIdByChannel(channel)
 
             If existingRecordId.HasValue Then
-                ' UPDATE existing record
                 UpdateBaseStation(existingRecordId.Value, channel, technology, mcc, mnc, earfcn, bsic, earfcn2, isGsm, isLte, isWcdma)
             Else
-                ' INSERT new record
                 InsertBaseStation(channel, technology, mcc, mnc, earfcn, bsic, earfcn2, isGsm, isLte, isWcdma)
             End If
 
             MessageBox.Show($"Base station CH{channel} saved successfully!")
 
-            ' Reset button state after successful save
-            buttonStates(channel) = False ' No changes
-            UpdateButtonState(channel, True) ' Update button text and disable it
+            buttonStates(channel) = False
+            UpdateButtonState(channel, True)
 
-            ' Update original values
             StoreOriginalValue($"CH{channel}_ComboBox", technology)
             StoreOriginalValue($"CH{channel}_TextBox1", mccText)
             StoreOriginalValue($"CH{channel}_TextBox2", mncText)
             StoreOriginalValue($"CH{channel}_TextBox3", earfcnText)
 
-            ' Store BSIC if available (for GSM channels)
             If bsicText IsNot Nothing Then
                 If channel = 1 Then
                     StoreOriginalValue($"CH{channel}_TextBox97", bsicText)
@@ -2679,7 +2884,6 @@ Public Class Form1
                 End If
             End If
 
-            ' Store EARFCN2 if available (for channel 9)
             If earfcn2Text IsNot Nothing AndAlso channel = 9 Then
                 StoreOriginalValue($"CH{channel}_TextBox126", earfcn2Text)
             End If
@@ -2710,7 +2914,6 @@ Public Class Form1
         Using connection As New SqlConnection(connectionString)
             connection.Open()
 
-            ' --- First update the original channel ---
             Dim query As String = "UPDATE base_stations SET
                             channel_number = @ChannelNumber,
                             is_gsm = @IsGsm,
@@ -2739,7 +2942,6 @@ Public Class Form1
                 command.ExecuteNonQuery()
             End Using
 
-            ' --- If channel = 9 and earfcn2 is available, also update channel 10 ---
             If earfcn2.HasValue AndAlso channel = 9 Then
                 Dim query2 As String = "UPDATE base_stations SET
                                 channel_number = @ChannelNumber,

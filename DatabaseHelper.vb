@@ -130,6 +130,24 @@ Public Class DatabaseHelper
 
         Return dt
     End Function
+
+
+    Public Function GetProviderName(mcc As String, mnc As String) As String
+        Dim query As String = "SELECT operator_name FROM operators WHERE mcc = @mcc AND mnc = @mnc"
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@mcc", mcc)
+                cmd.Parameters.AddWithValue("@mnc", mnc)
+
+                conn.Open()
+                Dim result As Object = cmd.ExecuteScalar()
+                If result IsNot Nothing AndAlso Not DBNull.Value.Equals(result) Then
+                    Return result.ToString()
+                End If
+            End Using
+        End Using
+        Return "Unknown"
+    End Function
 End Class
 
 Public Class BaseStation

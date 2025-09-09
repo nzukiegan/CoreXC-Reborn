@@ -328,7 +328,7 @@ Public Class Form6
                 If exists > 0 Then
                     Dim updateQuery As String = "UPDATE base_stations SET gsm_id = @gsmId, earfcn = @earfcn, 
                                               mcc = @mcc, mnc = @mnc, lac = @lac, cid = @cellId, 
-                                              bsic = @bsic, band = @band, is_gsm = 1, last_updated = SYSUTCDATETIME()
+                                              bsic = @bsic, band = @band, is_gsm = 1, is_lte = 0, is_wcdma= 0, last_updated = SYSUTCDATETIME()
                                               WHERE channel_number = @channelNumber"
 
                     Using updateCmd As New SqlCommand(updateQuery, connection)

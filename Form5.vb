@@ -256,21 +256,21 @@ Public Class Form5
     Private Function ChannelDefaultBand(channel As Integer) As String
         Select Case channel
             Case 1, 2
-                Return "Band 8 (900 MHz)"
+                Return "B8 (900 MHz)"
             Case 3, 4
-                Return "Band 3 (1800 MHz)"
+                Return "B3 (1800 MHz)"
             Case 5, 6
-                Return "Band 1 (2100 MHz)"
+                Return "B1 (2100 MHz)"
             Case 7, 8
-                Return "Band 5 (850 MHz)"
+                Return "B5 (850 MHz)"
             Case 9
-                Return "Band 40 (TDD 2300 MHz)"
+                Return "B40 (TDD 2300 MHz)"
             Case 10
-                Return "Band 40 (TDD 2300 MHz)"
+                Return "B40 (TDD 2300 MHz)"
             Case 11, 12
-                Return "Band 28 (700 MHz)"
+                Return "B28 (700 MHz)"
             Case 13, 14
-                Return "Band 7 (2600 MHz)"
+                Return "B7 (2600 MHz)"
             Case Else
                 Return "Unknown"
         End Select
@@ -375,7 +375,7 @@ Public Class Form5
                 If exists > 0 Then
                     Dim updateQuery As String = "UPDATE base_stations SET lte_id = @lteId, earfcn = @earfcn, 
                                               mcc = @mcc, mnc = @mnc, lac = @lac, cid = @cellId, 
-                                              band = @band, is_lte = 1, last_updated = SYSUTCDATETIME()
+                                              band = @band, is_lte = 1, is_gsm = 0, is_wcdma= 0, last_updated = SYSUTCDATETIME()
                                               WHERE channel_number = @channelNumber"
 
                     Using updateCmd As New SqlCommand(updateQuery, connection)
