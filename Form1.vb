@@ -444,12 +444,17 @@ Public Class Form1
                     Dim response As String = Encoding.ASCII.GetString(result.Buffer)
                     Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
                     Console.WriteLine(response)
-                    If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
-                        Me.Invoke(Sub()
-                                      processResponse(response)
-                                  End Sub)
-                    End If
-
+                    Try
+                        'Process log entry
+                        ProcessLogEntry(response)
+                    Catch ex As Exception
+                        'Try to process channel analyzer results
+                        If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
+                            Me.Invoke(Sub()
+                                          processResponse(response)
+                                      End Sub)
+                        End If
+                    End Try
                 Catch ex As Exception
                     If listenerRunning Then
                         Me.Invoke(Sub()
@@ -461,49 +466,53 @@ Public Class Form1
         End Function)
     End Sub
 
-    Public Shared Function ProcessLogEntry(logLine As String, entryNo As Integer, source As String) As Dictionary(Of String, Object)
+    Private Sub ProcessLogEntry(logLine As String)
         Dim pattern As String =
-            "(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+time\[(?<time>\d+)\]\s+" &
-            "taType\[(?<event>[^\]]+)\]\s+imsi\[(?<imsi>\d+)\]\s+" &
-            "imei\[(?<imei>\d+)\]\s+ulSig\[(?<ulsig>\d+)\]\s+" &
-            "ulTa\[(?<ta>\d+)\]\s+bl_indi\[(?<count>\d+)\]\s+" &
-            "tmsi\[(?<tmsi>[0-9A-F]+)\]\s+lac\[(?<lac>\d+)\]\s+" &
-            "dlrscp\[(?<rscp>\d+)\]"
+        "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+" &
+        "time\[(?<time>\d+)\]\s+" &
+        "taType\[(?<event>[^\]]+)\]\s+" &
+        "imsi\[(?<imsi>\d+)\]\s+" &
+        "imei\[(?<imei>\d+)\]\s+" &
+        "ulSig\[(?<ulsig>\d+)\]\s+" &
+        "ulTa\[(?<ta>\d+)\]\s+" &
+        "bl_indi\[(?<count>\d+)\]\s+" &
+        "tmsi\[(?<tmsi>[0-9A-F]+)\]\s+" &
+        "lac\[(?<lac>\d+)\]\s+" &
+        "dlrscp\[(?<rscp>\d+)\]"
 
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
-            Throw New Exception("Log line format not recognized.")
+            Throw New Exception("Log line format not recognized: " & logLine)
         End If
 
         Dim imsi As String = m.Groups("imsi").Value
-        Dim mcc As String = imsi.Substring(0, 3)
-        Dim mnc As String = imsi.Substring(3, 2)
+        Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
+        Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
 
         Dim row As New Dictionary(Of String, Object) From {
-            {"No", entryNo},
             {"date_event", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")},
             {"location_name", m.Groups("lac").Value},
-            {"source", source},
+            {"source", m.Groups("source").Value},
             {"provider_name", providerName},
             {"mcc", mcc},
             {"mnc", mnc},
             {"imsi", imsi},
             {"imei", m.Groups("imei").Value},
             {"guti", "-"},
-            {"count", m.Groups("count").Value},
             {"signal_Level", m.Groups("rscp").Value},
             {"time_advance", m.Groups("ta").Value},
-            {"phone_model", "(missing)"},
+            {"phone_model", "N/A"},
             {"event", m.Groups("event").Value},
             {"longitude", ""},
             {"latitude", ""}
-        }
+         }
 
-        Return row
-    End Function
+        InsertScanResult(row)
+    End Sub
+
 
     Public Sub InsertScanResult(row As Dictionary(Of String, Object))
         Dim columns = String.Join(",", row.Keys)
