@@ -67,6 +67,7 @@ Public Class Form1
             Await dbInitializer.EnsureDatabaseExistsAsync()
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
+            Await dbInitializer.InitializeBaseStations()
             disableAllBtns()
             LoadDataToGridViews()
             ApplyFilterToDataGridViews()
@@ -76,7 +77,6 @@ Public Class Form1
             SetupValidationEvents()
             LoadBlacklistData()
             LoadWhitelistData()
-            MessageBox.Show("Database and schema ready!", "Success")
             pingTimer = New System.Windows.Forms.Timer()
             pingTimer.Interval = 5000 ' Check every 5 seconds
             pingTimer.Start()
@@ -104,6 +104,8 @@ Public Class Form1
             StartUdpListener()
 
             Task.Run(Sub() UpdateButtonColors())
+
+            MessageBox.Show("Database and schema ready!", "Success")
         Catch ex As Exception
             MessageBox.Show("Database setup failed: " & ex.StackTrace, "Error")
         End Try
@@ -223,6 +225,7 @@ Public Class Form1
     End Function
 
     Private Async Sub StartCellOperation(address As String, button As Button)
+        Console.WriteLine("Start cell operation callled, address: " & address)
         button.Enabled = False
 
         Try
@@ -239,6 +242,7 @@ Public Class Form1
     End Sub
 
     Private Async Sub StopCellOperation(address As String, button As Button)
+        Console.WriteLine("Stop cell operation callled, address: " & address)
         Dim originalText As String = button.Text
 
         Try
@@ -247,9 +251,9 @@ Public Class Form1
             udp.Send(data, data.Length, address, 9001)
 
         Catch ex As SocketException
-            MessageBox.Show($"Could not connect to cell at {address}. Please check the connection.", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show($"Could Not connect To cell at {address}. Please check the connection.", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Catch ex As TimeoutException
-            MessageBox.Show($"Timeout while communicating with cell at {address}.", "Timeout Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show($"Timeout While communicating With cell at {address}.", "Timeout Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         Catch ex As Exception
             MessageBox.Show($"Error stopping cell at {address}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
@@ -443,18 +447,17 @@ Public Class Form1
                     Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
                     Dim response As String = Encoding.ASCII.GetString(result.Buffer)
                     Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
-                    Console.WriteLine(response)
-                    Try
-                        'Process log entry
-                        ProcessLogEntry(response)
-                    Catch ex As Exception
-                        'Try to process channel analyzer results
-                        If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
-                            Me.Invoke(Sub()
-                                          processResponse(response)
-                                      End Sub)
-                        End If
-                    End Try
+                    If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
+                        Me.Invoke(Sub()
+                                      processResponse(response)
+                                  End Sub)
+                    Else
+                        Try
+                            ProcessLogEntry(response)
+                        Catch ex As Exception
+                            Console.WriteLine(ex.Message)
+                        End Try
+                    End If
                 Catch ex As Exception
                     If listenerRunning Then
                         Me.Invoke(Sub()
@@ -472,18 +475,19 @@ Public Class Form1
         "time\[(?<time>\d+)\]\s+" &
         "taType\[(?<event>[^\]]+)\]\s+" &
         "imsi\[(?<imsi>\d+)\]\s+" &
-        "imei\[(?<imei>\d+)\]\s+" &
+        "imei\[(?<imei>[^\]]+)\]\s+" &
         "ulSig\[(?<ulsig>\d+)\]\s+" &
         "ulTa\[(?<ta>\d+)\]\s+" &
         "bl_indi\[(?<count>\d+)\]\s+" &
-        "tmsi\[(?<tmsi>[0-9A-F]+)\]\s+" &
+        "tmsi\[(?<tmsi>[0-9A-Fa-f]+)\]\s*" &
         "lac\[(?<lac>\d+)\]\s+" &
-        "dlrscp\[(?<rscp>\d+)\]"
+        "dlrscp\[(?<rscp>\d+)\]\s*$"
 
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
             Throw New Exception("Log line format not recognized: " & logLine)
         End If
+
 
         Dim imsi As String = m.Groups("imsi").Value
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
@@ -502,7 +506,7 @@ Public Class Form1
             {"imsi", imsi},
             {"imei", m.Groups("imei").Value},
             {"guti", "-"},
-            {"signal_Level", m.Groups("rscp").Value},
+            {"signal_Level", m.Groups("rssi").Value},
             {"time_advance", m.Groups("ta").Value},
             {"phone_model", "N/A"},
             {"event", m.Groups("event").Value},
@@ -515,20 +519,180 @@ Public Class Form1
 
 
     Public Sub InsertScanResult(row As Dictionary(Of String, Object))
-        Dim columns = String.Join(",", row.Keys)
-        Dim parameters = String.Join(",", row.Keys.Select(Function(k) "@" & k))
-
-        Dim sql As String = $"INSERT INTO scan_results ({columns}) VALUES ({parameters})"
-
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Using cmd As New SqlCommand(sql, conn)
-                For Each kvp In row
-                    cmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
-                Next
-                cmd.ExecuteNonQuery()
+
+            Dim checkSql As String = "SELECT result_no, count FROM scan_results WHERE imsi = @imsi"
+            Dim existingResultNo As Object = Nothing
+            Dim existingCount As Integer = 0
+
+            Using checkCmd As New SqlCommand(checkSql, conn)
+                checkCmd.Parameters.AddWithValue("@imsi", row("imsi"))
+                Using reader = checkCmd.ExecuteReader()
+                    If reader.Read() Then
+                        existingResultNo = reader("result_no")
+                        existingCount = Convert.ToInt32(reader("count"))
+                    End If
+                End Using
             End Using
+
+            If existingResultNo IsNot Nothing Then
+                Dim updateSql As String = "
+                UPDATE scan_results 
+                SET count = @newCount,
+                    date_event = @date_event,
+                    location_name = @location_name,
+                    source = @source,
+                    provider_name = @provider_name,
+                    mcc = @mcc,
+                    mnc = @mnc,
+                    imei = @imei,
+                    guti = @guti,
+                    signal_level = @signal_level,
+                    time_advance = @time_advance,
+                    phone_model = @phone_model,
+                    event = @event,
+                    longitude = @longitude,
+                    latitude = @latitude
+                WHERE result_no = @result_no"
+
+                Using updateCmd As New SqlCommand(updateSql, conn)
+                    updateCmd.Parameters.AddWithValue("@newCount", existingCount + 1)
+                    updateCmd.Parameters.AddWithValue("@result_no", existingResultNo)
+
+                    For Each kvp In row
+                        updateCmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
+                    Next
+
+                    updateCmd.ExecuteNonQuery()
+                End Using
+            Else
+                row("count") = 1
+                Dim columns = String.Join(",", row.Keys)
+                Dim parameters = String.Join(",", row.Keys.Select(Function(k) "@" & k))
+
+                Dim insertSql As String = $"INSERT INTO scan_results ({columns}) VALUES ({parameters})"
+
+                Using insertCmd As New SqlCommand(insertSql, conn)
+                    For Each kvp In row
+                        insertCmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
+                    Next
+                    insertCmd.ExecuteNonQuery()
+                End Using
+            End If
         End Using
+    End Sub
+
+    Private Sub updateScanResultDv(row As Dictionary(Of String, Object))
+        Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
+        If dt Is Nothing Then Return
+
+        If Not dt.Columns.Contains("rat") Then
+            dt.Columns.Add("rat", GetType(String))
+        End If
+
+        Dim sourceStr As String = ""
+        If row.ContainsKey("source") AndAlso row("source") IsNot Nothing Then
+            sourceStr = row("source").ToString().Trim()
+        End If
+
+        Dim channelNumber As Integer = 0
+        Dim chMatch = System.Text.RegularExpressions.Regex.Match(sourceStr, "\d+")
+        If chMatch.Success Then
+            Integer.TryParse(chMatch.Value, channelNumber)
+        End If
+
+        Dim rat As String = "UNKNOWN"
+        If channelNumber > 0 Then
+            Try
+                Using conn As New SqlClient.SqlConnection(connectionString)
+                    conn.Open()
+                    Dim bsQuery As String = "
+                    SELECT is_gsm, is_lte, is_wcdma
+                    FROM base_stations
+                    WHERE channel_number = @ch"
+                    Using bsCmd As New SqlClient.SqlCommand(bsQuery, conn)
+                        bsCmd.Parameters.AddWithValue("@ch", channelNumber)
+                        Using r As SqlClient.SqlDataReader = bsCmd.ExecuteReader()
+                            If r.Read() Then
+                                Dim isGsm As Boolean = False
+                                Dim isLte As Boolean = False
+                                Dim isWcdma As Boolean = False
+
+                                If Not IsDBNull(r("is_gsm")) Then isGsm = Convert.ToBoolean(r("is_gsm"))
+                                If Not IsDBNull(r("is_lte")) Then isLte = Convert.ToBoolean(r("is_lte"))
+                                If Not IsDBNull(r("is_wcdma")) Then isWcdma = Convert.ToBoolean(r("is_wcdma"))
+
+                                If isGsm Then
+                                    rat = "GSM"
+                                ElseIf isWcdma Then
+                                    rat = "WCDMA"
+                                ElseIf isLte Then
+                                    If channelNumber = 9 OrElse channelNumber = 10 Then
+                                        rat = "LTE-TDD"
+                                    Else
+                                        rat = "LTE-FDD"
+                                    End If
+                                Else
+                                    rat = "UNKNOWN"
+                                End If
+                            End If
+                        End Using
+                    End Using
+                End Using
+            Catch ex As Exception
+                rat = "UNKNOWN"
+            End Try
+        End If
+
+        Dim imsiVal As String = ""
+        If row.ContainsKey("imsi") AndAlso row("imsi") IsNot Nothing Then
+            imsiVal = row("imsi").ToString()
+        End If
+
+        Dim existingRow As DataRow = Nothing
+        For Each dr As DataRow In dt.Rows
+            Dim drImsi As String = If(dr.Table.Columns.Contains("imsi") AndAlso Not dr.IsNull("imsi"), dr("imsi").ToString(), "")
+            Dim drRat As String = If(dr.Table.Columns.Contains("rat") AndAlso Not dr.IsNull("rat"), dr("rat").ToString(), "")
+
+            If String.Equals(drImsi, imsiVal, StringComparison.Ordinal) AndAlso
+           String.Equals(drRat, rat, StringComparison.OrdinalIgnoreCase) Then
+                existingRow = dr
+                Exit For
+            End If
+        Next
+
+        If existingRow IsNot Nothing Then
+            Dim currentCount As Integer = 0
+            If Not IsDBNull(existingRow("count")) Then
+                Integer.TryParse(existingRow("count").ToString(), currentCount)
+            End If
+            existingRow("count") = currentCount + 1
+
+            If existingRow.Table.Columns.Contains("date_event") Then
+                existingRow("date_event") = DateTime.Now
+            End If
+        Else
+            Dim newRow As DataRow = dt.NewRow()
+            For Each kvp In row
+                If dt.Columns.Contains(kvp.Key) Then
+                    newRow(kvp.Key) = If(kvp.Value, DBNull.Value)
+                End If
+            Next
+
+            If dt.Columns.Contains("date_event") Then
+                newRow("date_event") = If(row.ContainsKey("date_event") AndAlso row("date_event") IsNot Nothing,
+                                      row("date_event"), DateTime.Now)
+            End If
+
+            If dt.Columns.Contains("count") Then
+                newRow("count") = 1
+            End If
+
+            newRow("rat") = rat
+
+            dt.Rows.InsertAt(newRow, 0)
+        End If
     End Sub
 
 
@@ -1219,14 +1383,92 @@ Public Class Form1
         Try
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
-                Dim query As String = "SELECT result_no, date_event, location_name, source, provider_name, mcc, mnc, imsi, imei, tmsi, guti, count, signal_level, time_advance, phone_model, event, longitude, latitude FROM scan_results"
+                Dim query As String = "
+                SELECT result_no,
+                       date_event,
+                       location_name,
+                       source,
+                       provider_name,
+                       mcc,
+                       mnc,
+                       imsi,
+                       imei,
+                       guti,
+                       signal_level,
+                       time_advance,
+                       longitude,
+                       latitude,
+                       phone_model,
+                       event,
+                       count
+                FROM scan_results
+                ORDER BY date_event DESC"
 
                 Using cmd As New SqlCommand(query, conn)
                     Using adapter As New SqlDataAdapter(cmd)
                         Dim dt As New DataTable()
                         adapter.Fill(dt)
 
-                        'Bind to DataGridView
+                        If Not dt.Columns.Contains("rat") Then
+                            dt.Columns.Add("rat", GetType(String))
+                        End If
+
+                        For Each row As DataRow In dt.Rows
+                            Dim source As String = row("source").ToString()
+                            Dim channelNumber As Integer = 0
+                            If source.StartsWith("CH") Then
+                                Integer.TryParse(source.Substring(2), channelNumber)
+                            End If
+
+                            If channelNumber > 0 Then
+                                Dim bsQuery As String = "
+                                SELECT is_gsm, is_lte, is_wcdma
+                                FROM base_stations
+                                WHERE channel_number = @ch"
+                                Using bsCmd As New SqlCommand(bsQuery, conn)
+                                    bsCmd.Parameters.AddWithValue("@ch", channelNumber)
+                                    Using reader As SqlDataReader = bsCmd.ExecuteReader()
+                                        If reader.Read() Then
+                                            Dim isGsm As Boolean = Convert.ToBoolean(reader("is_gsm"))
+                                            Dim isLte As Boolean = Convert.ToBoolean(reader("is_lte"))
+                                            Dim isWcdma As Boolean = Convert.ToBoolean(reader("is_wcdma"))
+
+                                            If isGsm Then
+                                                row("rat") = "GSM"
+                                            ElseIf isWcdma Then
+                                                row("rat") = "WCDMA"
+                                            ElseIf isLte Then
+                                                If channelNumber = 9 OrElse channelNumber = 10 Then
+                                                    row("rat") = "LTE-TDD"
+                                                Else
+                                                    row("rat") = "LTE-FDD"
+                                                End If
+                                            End If
+                                        End If
+                                    End Using
+                                End Using
+                            End If
+                        Next
+
+                        Me.Column43.DataPropertyName = "result_no"
+                        Me.Column44.DataPropertyName = "date_event"
+                        Me.Column45.DataPropertyName = "location_name"
+                        Me.Column46.DataPropertyName = "source"
+                        Me.Column51.DataPropertyName = "provider_name"
+                        Me.Column52.DataPropertyName = "mcc"
+                        Me.Column53.DataPropertyName = "mnc"
+                        Me.Column47.DataPropertyName = "imsi"
+                        Me.Column48.DataPropertyName = "imei"
+                        Me.Column50.DataPropertyName = "guti"
+                        Me.Column54.DataPropertyName = "count"
+                        Me.Column55.DataPropertyName = "signal_level"
+                        Me.Column56.DataPropertyName = "time_advance"
+                        Me.Column57.DataPropertyName = "phone_model"
+                        Me.Column58.DataPropertyName = "event"
+                        Me.Column59.DataPropertyName = "longitude"
+                        Me.Column60.DataPropertyName = "latitude"
+                        Me.Column611.DataPropertyName = "rat"
+
                         DataGridView4.DataSource = dt
                     End Using
                 End Using
@@ -1236,21 +1478,28 @@ Public Class Form1
         End Try
     End Sub
 
+
     Private Sub LoadChartData()
         Try
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
-                Dim query As String = "SELECT provider_name, COUNT(*) as scan_count FROM scan_results GROUP BY provider_name"
+
+                Dim query As String = "
+                SELECT source AS channel, COUNT(imsi) AS scan_count
+                FROM scan_results
+                WHERE source IS NOT NULL AND source <> ''
+                GROUP BY source
+                ORDER BY channel"
 
                 Using cmd As New SqlCommand(query, conn)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         Chart1.Series("Series1").Points.Clear()
 
                         While reader.Read()
-                            Dim providerName As String = reader("provider_name").ToString()
+                            Dim channel As String = reader("channel").ToString()
                             Dim scanCount As Integer = Convert.ToInt32(reader("scan_count"))
 
-                            Chart1.Series("Series1").Points.AddXY(providerName, scanCount)
+                            Chart1.Series("Series1").Points.AddXY(channel, scanCount)
                         End While
                     End Using
                 End Using
@@ -1259,6 +1508,7 @@ Public Class Form1
             MessageBox.Show("Error loading chart data: " & ex.Message)
         End Try
     End Sub
+
 
     Private Sub LoadWhitelistData()
         Try
@@ -1278,7 +1528,6 @@ Public Class Form1
 
     Public Sub LoadBaseStationData1()
         Try
-            ' Load data for all base station channels
             LoadBaseStationChannel1(1, TextBox4, TextBox5, TextBox6, TextBox7, TextBox9, TextBox8, TextBox40, ComboBox12, PictureBox2)
             LoadBaseStationChannel1(2, TextBox15, TextBox14, TextBox12, TextBox13, TextBox10, TextBox11, TextBox41, ComboBox13, PictureBox3)
             LoadBaseStationChannel1(3, TextBox21, TextBox20, TextBox18, TextBox19, TextBox16, TextBox17, TextBox42, ComboBox14, PictureBox1)
@@ -1390,11 +1639,16 @@ Public Class Form1
                         If reader("is_gsm") IsNot DBNull.Value AndAlso CBool(reader("is_gsm")) Then
                             txtTechnology.Text = "GSM"
                         ElseIf reader("is_lte") IsNot DBNull.Value AndAlso CBool(reader("is_lte")) Then
-                            txtTechnology.Text = "LTE-FDD"
+                            If channelNumber = 9 OrElse channelNumber = 10 Then
+                                txtTechnology.Text = "LTE-TDD"
+                            Else
+                                txtTechnology.Text = "LTE-FDD"
+                            End If
+
                         ElseIf reader("is_wcdma") IsNot DBNull.Value AndAlso CBool(reader("is_wcdma")) Then
-                            txtTechnology.Text = "WCDMA"
-                        Else
-                            txtTechnology.Text = "Unknown"
+                                txtTechnology.Text = "WCDMA"
+                            Else
+                                txtTechnology.Text = "Unknown"
                         End If
 
                         If reader("band") IsNot DBNull.Value Then
@@ -3160,7 +3414,6 @@ Public Class Form1
         groupBox.Padding = New Padding(20)
         groupBox.Font = New Font("Segoe UI", 9.0!, FontStyle.Bold)
 
-        ' Style all group boxes within the manual base station
         For Each control As Control In groupBox.Controls
             If TypeOf control Is GroupBox Then
                 Dim subGroup As GroupBox = CType(control, GroupBox)
@@ -3480,47 +3733,47 @@ Public Class Form1
         StopCellOperation("192.168.1.91", Button9)
     End Sub
 
-    Private Sub Button12_Click(sender As Object, e As EventArgs) Handles Button12.Click
+    Private Sub Button10_Click(sender As Object, e As EventArgs) Handles Button12.Click
         StopCellOperation("192.168.1.92", Button12)
     End Sub
 
-    Private Sub Button14_Click(sender As Object, e As EventArgs) Handles Button14.Click
+    Private Sub Button12_Click(sender As Object, e As EventArgs) Handles Button14.Click
         StopCellOperation("192.168.1.93", Button14)
     End Sub
 
-    Private Sub Button16_Click(sender As Object, e As EventArgs) Handles Button16.Click
+    Private Sub Button14_Click(sender As Object, e As EventArgs) Handles Button16.Click
         StopCellOperation("192.168.1.94", Button16)
     End Sub
 
-    Private Sub Button18_Click(sender As Object, e As EventArgs) Handles Button18.Click
+    Private Sub Button16_Click(sender As Object, e As EventArgs) Handles Button18.Click
         StopCellOperation("192.168.1.95", Button18)
     End Sub
 
-    Private Sub Button20_Click(sender As Object, e As EventArgs) Handles Button20.Click
+    Private Sub Button18_Click(sender As Object, e As EventArgs) Handles Button20.Click
         StopCellOperation("192.168.1.96", Button20)
     End Sub
 
-    Private Sub Button22_Click(sender As Object, e As EventArgs) Handles Button22.Click
+    Private Sub Button20_Click(sender As Object, e As EventArgs) Handles Button22.Click
         StopCellOperation("192.168.1.97", Button22)
     End Sub
 
-    Private Sub Button32_Click(sender As Object, e As EventArgs) Handles Button32.Click
+    Private Sub Button30_Click(sender As Object, e As EventArgs) Handles Button32.Click
         StopCellOperation("192.168.1.98", Button32)
     End Sub
 
-    Private Sub Button24_Click(sender As Object, e As EventArgs) Handles Button24.Click
+    Private Sub Button22_Click(sender As Object, e As EventArgs) Handles Button24.Click
         StopCellOperation("192.168.1.101", Button24)
     End Sub
 
-    Private Sub Button26_Click(sender As Object, e As EventArgs) Handles Button26.Click
+    Private Sub Button24_Click(sender As Object, e As EventArgs) Handles Button26.Click
         StopCellOperation("192.168.1.102", Button26)
     End Sub
 
-    Private Sub Button28_Click(sender As Object, e As EventArgs) Handles Button28.Click
+    Private Sub Button26_Click(sender As Object, e As EventArgs) Handles Button28.Click
         StopCellOperation("192.168.1.103", Button28)
     End Sub
 
-    Private Sub Button30_Click(sender As Object, e As EventArgs) Handles Button30.Click
+    Private Sub Button28_Click(sender As Object, e As EventArgs) Handles Button30.Click
         StopCellOperation("192.168.1.104", Button30)
     End Sub
 

@@ -526,6 +526,7 @@ Partial Class Form1
         Me.Column58 = New System.Windows.Forms.DataGridViewTextBoxColumn()
         Me.Column59 = New System.Windows.Forms.DataGridViewTextBoxColumn()
         Me.Column60 = New System.Windows.Forms.DataGridViewTextBoxColumn()
+        Me.Column611 = New System.Windows.Forms.DataGridViewTextBoxColumn()
         Me.CorexctaskingDataSetBindingSource1 = New System.Windows.Forms.BindingSource(Me.components)
         Me.CorexctaskingDataSet = New CoreXC_Reborn.corexctaskingDataSet()
         Me.TabPage4 = New System.Windows.Forms.TabPage()
@@ -5545,7 +5546,7 @@ Partial Class Form1
         '
         Me.DataGridView4.AutoGenerateColumns = False
         Me.DataGridView4.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
-        Me.DataGridView4.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.Column43, Me.Column44, Me.Column45, Me.Column46, Me.Column51, Me.Column52, Me.Column53, Me.Column47, Me.Column48, Me.Column49, Me.Column50, Me.Column54, Me.Column55, Me.Column56, Me.Column57, Me.Column58, Me.Column59, Me.Column60})
+        Me.DataGridView4.Columns.AddRange(New System.Windows.Forms.DataGridViewColumn() {Me.Column43, Me.Column611, Me.Column44, Me.Column45, Me.Column46, Me.Column51, Me.Column52, Me.Column53, Me.Column47, Me.Column48, Me.Column49, Me.Column50, Me.Column54, Me.Column55, Me.Column56, Me.Column57, Me.Column58, Me.Column59, Me.Column60})
         Me.DataGridView4.DataSource = Me.CorexctaskingDataSetBindingSource1
         Me.DataGridView4.Location = New System.Drawing.Point(5, 17)
         Me.DataGridView4.Margin = New System.Windows.Forms.Padding(2)
@@ -5680,6 +5681,33 @@ Partial Class Form1
         Me.Column60.MinimumWidth = 8
         Me.Column60.Name = "Column60"
         Me.Column60.Width = 150
+
+        '
+        'Column611
+        '
+        Me.Column611.HeaderText = "Rat"
+        Me.Column611.MinimumWidth = 8
+        Me.Column611.Name = "Column611"
+        Me.Column611.Width = 150
+
+        Me.Column43.DataPropertyName = "result_no"
+        Me.Column44.DataPropertyName = "date_event"
+        Me.Column45.DataPropertyName = "location_name"
+        Me.Column46.DataPropertyName = "source"
+        Me.Column51.DataPropertyName = "provider_name"
+        Me.Column52.DataPropertyName = "mcc"
+        Me.Column53.DataPropertyName = "mnc"
+        Me.Column47.DataPropertyName = "imsi"
+        Me.Column48.DataPropertyName = "imei"
+        Me.Column50.DataPropertyName = "guti"
+        Me.Column54.DataPropertyName = "count"
+        Me.Column55.DataPropertyName = "signal_level"
+        Me.Column56.DataPropertyName = "time_advance"
+        Me.Column57.DataPropertyName = "phone_model"
+        Me.Column58.DataPropertyName = "event"
+        Me.Column59.DataPropertyName = "longitude"
+        Me.Column60.DataPropertyName = "latitude"
+
         '
         'CorexctaskingDataSetBindingSource1
         '
@@ -7725,6 +7753,7 @@ Partial Class Form1
     Friend WithEvents Column58 As DataGridViewTextBoxColumn
     Friend WithEvents Column59 As DataGridViewTextBoxColumn
     Friend WithEvents Column60 As DataGridViewTextBoxColumn
+    Friend WithEvents Column611 As DataGridViewTextBoxColumn
     Friend WithEvents Column61 As DataGridViewTextBoxColumn
     Friend WithEvents Column62 As DataGridViewTextBoxColumn
     Friend WithEvents Column63 As DataGridViewTextBoxColumn

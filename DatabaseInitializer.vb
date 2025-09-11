@@ -4,6 +4,7 @@ Imports System.Text
 Imports System.Threading.Tasks
 
 Public Class DatabaseInitializer
+    Private ReadOnly connectionString As String = $"Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Integrated Security=true;"
     Private ReadOnly masterConnection As String
     Private ReadOnly targetDbName As String
 
@@ -35,6 +36,42 @@ Public Class DatabaseInitializer
             End Using
         End Using
     End Function
+
+    Public Async Function InitializeBaseStations() As Task
+        Try
+            Using connection As New SqlConnection(connectionString)
+                connection.Open()
+
+                For channel As Integer = 1 To 14
+                    Dim checkQuery As String = "
+                    SELECT COUNT(*) 
+                    FROM base_stations 
+                    WHERE channel_number = @channel"
+
+                    Dim exists As Boolean
+                    Using checkCmd As New SqlCommand(checkQuery, connection)
+                        checkCmd.Parameters.AddWithValue("@channel", channel)
+                        exists = Convert.ToInt32(checkCmd.ExecuteScalar()) > 0
+                    End Using
+
+                    If Not exists Then
+                        Dim insertQuery As String = "
+                        INSERT INTO base_stations (channel_number, is_lte)
+                        VALUES (@channel, 1);"
+
+                        Using insertCmd As New SqlCommand(insertQuery, connection)
+                            insertCmd.Parameters.AddWithValue("@channel", channel)
+                            insertCmd.ExecuteNonQuery()
+                        End Using
+                    End If
+                Next
+
+            End Using
+        Catch ex As Exception
+            Console.WriteLine("Error initializing base stations: " & ex.Message)
+        End Try
+    End Function
+
 
     Public Async Function SeedOperatorsAsync() As Task
         Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"
