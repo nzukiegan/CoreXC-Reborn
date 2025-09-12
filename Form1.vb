@@ -347,41 +347,54 @@ Public Class Form1
         End Try
     End Sub
 
-    Private Sub Button36_Click(sender As Object, e As EventArgs) Handles Button36.Click
-        SearchIMSI()
-    End Sub
-
     Private Sub SearchIMSI()
-        Dim searchValue As String = TextBox96.Text.Trim()
-
-        If String.IsNullOrEmpty(searchValue) Then
-            MessageBox.Show("Please enter an IMSI to search")
+        Dim searchImsi As String = TextBox96.Text.Trim()
+        If String.IsNullOrEmpty(searchImsi) Then
+            MessageBox.Show("Please enter an IMSI to search.", "Search IMSI", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End If
 
+        Dim imsiCol As DataGridViewColumn = Nothing
+        For Each col As DataGridViewColumn In DataGridView4.Columns
+            If String.Equals(col.DataPropertyName, "imsi", StringComparison.OrdinalIgnoreCase) Then
+                imsiCol = col
+                Exit For
+            End If
+        Next
+
+        If imsiCol Is Nothing Then
+            MessageBox.Show("IMSI column not found in the grid.", "Search IMSI", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Dim foundIndex As Integer = -1
+        For i As Integer = 0 To DataGridView4.Rows.Count - 1
+            Dim dr As DataGridViewRow = DataGridView4.Rows(i)
+            If dr.IsNewRow Then Continue For
+
+            Dim cellVal As String = If(dr.Cells(imsiCol.Index).Value, String.Empty).ToString().Trim()
+            If String.Equals(cellVal, searchImsi, StringComparison.OrdinalIgnoreCase) Then
+                foundIndex = i
+                Exit For
+            End If
+        Next
+
+        If foundIndex = -1 Then
+            MessageBox.Show($"IMSI '{searchImsi}' not found.", "Search IMSI", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        DataGridView4.ClearSelection()
+        Dim foundRow As DataGridViewRow = DataGridView4.Rows(foundIndex)
+        foundRow.Selected = True
+
+        DataGridView4.CurrentCell = foundRow.Cells(imsiCol.Index)
+
         Try
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Dim query As String = "SELECT result_no, date_event, location_name, source, provider_name, mcc, mnc, imsi, imei, tmsi, guti, count, signal_level, time_advance, phone_model, event, longitude, latitude FROM scan_results WHERE imsi LIKE @imsi"
-
-                Using cmd As New SqlCommand(query, conn)
-                    cmd.Parameters.AddWithValue("@imsi", "%" + searchValue + "%")
-
-                    Using adapter As New SqlDataAdapter(cmd)
-                        Dim dt As New DataTable()
-                        adapter.Fill(dt)
-
-                        'Bind to DataGridView
-                        DataGridView4.DataSource = dt
-
-                        If dt.Rows.Count = 0 Then
-                            MessageBox.Show("No results found for IMSI: " & searchValue)
-                        End If
-                    End Using
-                End Using
-            End Using
+            Dim firstIndex As Integer = Math.Max(0, foundIndex - 2)
+            DataGridView4.FirstDisplayedScrollingRowIndex = firstIndex
         Catch ex As Exception
-            MessageBox.Show("Error searching IMSI: " & ex.Message)
+
         End Try
     End Sub
 
@@ -1477,6 +1490,11 @@ Public Class Form1
             MessageBox.Show("Error loading scan results: " & ex.Message)
         End Try
     End Sub
+
+    Private Sub Button36_Click(sender As Object, e As EventArgs) Handles Button36.Click
+        SearchIMSI()
+    End Sub
+
 
 
     Private Sub LoadChartData()
