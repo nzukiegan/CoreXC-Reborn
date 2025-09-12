@@ -1,3 +1,50 @@
-﻿Public Class Form4
+﻿Imports System.Data.SqlClient
+
+Public Class Form4
+
+    Private ReadOnly connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+
+    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        Dim tableName As String = TextBox1.Text.Trim()
+        Dim locationCol As String = TextBox2.Text.Trim()
+        Dim createDate As DateTime = DateTimePicker1.Value
+
+        If String.IsNullOrEmpty(tableName) Then
+            MessageBox.Show("Please enter a table name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                Dim sql As String = $"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '{tableName}')
+                    BEGIN
+                        CREATE TABLE [{tableName}] (
+                            id INT PRIMARY KEY IDENTITY(1,1),
+                            location NVARCHAR(255) NOT NULL,
+                            date_create DATETIME2 NOT NULL
+                        )
+                    END"
+
+                Using cmd As New SqlCommand(sql, conn)
+                    cmd.ExecuteNonQuery()
+                End Using
+
+                Dim insertSql As String = $"INSERT INTO [{tableName}] (location, date_create) VALUES (@location, @date_create)"
+                Using insertCmd As New SqlCommand(insertSql, conn)
+                    insertCmd.Parameters.AddWithValue("@location", locationCol)
+                    insertCmd.Parameters.AddWithValue("@date_create", createDate)
+                    insertCmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            MessageBox.Show($"Table '{tableName}' created (if not existed) and first record inserted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+
+        Catch ex As Exception
+            MessageBox.Show("Error creating table: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
 
 End Class
