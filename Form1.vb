@@ -101,6 +101,8 @@ Public Class Form1
             AddHandler ComboBox14.SelectedIndexChanged, AddressOf TechnologyChanged_CH3
             AddHandler ComboBox15.SelectedIndexChanged, AddressOf TechnologyChanged_CH4
 
+            LoadTaskingList()
+
             StartUdpListener()
 
             Task.Run(Sub() UpdateButtonColors())
@@ -2652,6 +2654,36 @@ Public Class Form1
                     PopulateChannel14(row)
             End Select
         End If
+    End Sub
+
+    Private Sub LoadTaskingList()
+        Try
+            DataGridView8.Rows.Clear()
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                Dim sql As String = "
+                    SELECT t.name AS TableName
+                    FROM sys.tables t
+                    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                    WHERE s.name = 'tasking_list'
+                    ORDER BY t.name
+                "
+
+                Using cmd As New SqlCommand(sql, conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        While reader.Read()
+                            Dim tableName As String = reader("TableName").ToString()
+                            DataGridView8.Rows.Add(tableName)
+                        End While
+                    End Using
+                End Using
+            End Using
+
+        Catch ex As Exception
+            MessageBox.Show("Error loading tasking list: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
 
     Private Sub PopulateChannel1(row As DataRow)
