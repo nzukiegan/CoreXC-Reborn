@@ -972,6 +972,7 @@ Partial Class Form1
         '
         Me.Column3.HeaderText = "Table Name"
         Me.Column3.MinimumWidth = 8
+        Me.Column3.DataPropertyName = "tableName"
         Me.Column3.Name = "Column3"
         Me.Column3.Width = 150
         '

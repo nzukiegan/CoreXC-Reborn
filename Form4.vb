@@ -5,12 +5,10 @@ Public Class Form4
     Private connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
-        Dim tableName As String = TextBox1.Text.Trim()
-        Dim locationCol As String = TextBox2.Text.Trim()
-        Dim createDate As DateTime = DateTimePicker1.Value
+        Dim schemaName As String = TextBox1.Text.Trim()
 
-        If String.IsNullOrEmpty(tableName) Then
-            MessageBox.Show("Please enter a table name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        If String.IsNullOrEmpty(schemaName) Then
+            MessageBox.Show("Please enter a schema name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
             Return
         End If
 
@@ -18,44 +16,83 @@ Public Class Form4
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
-                Dim schemaSql As String = "
-                    IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'tasking_list')
-                        EXEC('CREATE SCHEMA tasking_list')
-                "
+                Dim schemaSql As String =
+                    $"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schemaName}')
+                        EXEC('CREATE SCHEMA [{schemaName}]')"
                 Using schemaCmd As New SqlCommand(schemaSql, conn)
                     schemaCmd.ExecuteNonQuery()
                 End Using
 
-                Dim sql As String = $"
+                Dim scanResultsSql As String = $"
                     IF NOT EXISTS (
-                        SELECT * FROM sys.tables t
-                        INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-                        WHERE t.name = '{tableName}' AND s.name = 'tasking_list'
+                        SELECT * FROM sys.tables 
+                        WHERE name = 'scan_results' AND schema_id = SCHEMA_ID('{schemaName}')
                     )
                     BEGIN
-                        CREATE TABLE [tasking_list].[{tableName}] (
-                            id INT PRIMARY KEY IDENTITY(1,1),
-                            location NVARCHAR(255) NOT NULL,
-                            date_create DATETIME2 NOT NULL
+                        CREATE TABLE [{schemaName}].[scan_results] (
+                            result_no BIGINT PRIMARY KEY IDENTITY(1,1),
+                            date_event DATETIME2 NOT NULL,
+                            location_name NVARCHAR(255) NOT NULL,
+                            source NVARCHAR(100),
+                            provider_name NVARCHAR(100),
+                            mcc INT,
+                            mnc INT,
+                            imsi NVARCHAR(64),
+                            imei NVARCHAR(64),
+                            guti NVARCHAR(64),
+                            signal_level FLOAT,
+                            time_advance INT,
+                            longitude FLOAT,
+                            latitude FLOAT,
+                            phone_model NVARCHAR(150),
+                            event NVARCHAR(150),
+                            count INT
                         )
                     END"
-
-                Using cmd As New SqlCommand(sql, conn)
+                Using cmd As New SqlCommand(scanResultsSql, conn)
                     cmd.ExecuteNonQuery()
                 End Using
 
-                Dim insertSql As String = $"INSERT INTO [tasking_list].[{tableName}] (location, date_create) VALUES (@location, @date_create)"
-                Using insertCmd As New SqlCommand(insertSql, conn)
-                    insertCmd.Parameters.AddWithValue("@location", locationCol)
-                    insertCmd.Parameters.AddWithValue("@date_create", createDate)
-                    insertCmd.ExecuteNonQuery()
+                Dim blacklistSql As String = $"
+                    IF NOT EXISTS (
+                        SELECT * FROM sys.tables 
+                        WHERE name = 'blacklist' AND schema_id = SCHEMA_ID('{schemaName}')
+                    )
+                    BEGIN
+                        CREATE TABLE [{schemaName}].[blacklist] (
+                            blacklist_id INT PRIMARY KEY IDENTITY(1,1),
+                            imei NVARCHAR(50),
+                            imsi NVARCHAR(64),
+                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                        )
+                    END"
+                Using cmd As New SqlCommand(blacklistSql, conn)
+                    cmd.ExecuteNonQuery()
                 End Using
+
+                Dim whitelistSql As String = $"
+                    IF NOT EXISTS (
+                        SELECT * FROM sys.tables 
+                        WHERE name = 'whitelist' AND schema_id = SCHEMA_ID('{schemaName}')
+                    )
+                    BEGIN
+                        CREATE TABLE [{schemaName}].[whitelist] (
+                            whitelist_id INT PRIMARY KEY IDENTITY(1,1),
+                            imei NVARCHAR(50),
+                            imsi NVARCHAR(50),
+                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                        )
+                    END"
+                Using cmd As New SqlCommand(whitelistSql, conn)
+                    cmd.ExecuteNonQuery()
+                End Using
+
             End Using
 
-            MessageBox.Show($"Table '[tasking_list].[{tableName}]' created (if not existed) and first record inserted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            MessageBox.Show($"Schema '{schemaName}' created (if not existed) with tables scan_results, blacklist, and whitelist.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
         Catch ex As Exception
-            MessageBox.Show("Error creating table: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show("Error creating schema/tables: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 

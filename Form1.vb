@@ -56,6 +56,7 @@ Public Class Form1
         {"three", My.Resources.three},
         {"xlcomindo", My.Resources.XL_Image}
     }
+    Private selectedSchema As String = String.Empty
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -1394,11 +1395,28 @@ Public Class Form1
         DataGridView4.Rows.Clear()
     End Sub
 
+    Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
+        ' Example: load scan results for the selected schema
+        If String.IsNullOrEmpty(selectedSchema) Then
+            MessageBox.Show("Please select database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        LoadScanResults()
+    End Sub
+
+
     Private Sub LoadScanResults()
         Try
+            If String.IsNullOrEmpty(selectedSchema) Then
+                MessageBox.Show("Please select a database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return
+            End If
+
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
-                Dim query As String = "
+
+                Dim query As String = $"
                 SELECT result_no,
                        date_event,
                        location_name,
@@ -1416,7 +1434,7 @@ Public Class Form1
                        phone_model,
                        event,
                        count
-                FROM scan_results
+                FROM [{selectedSchema}].scan_results
                 ORDER BY date_event DESC"
 
                 Using cmd As New SqlCommand(query, conn)
@@ -1488,6 +1506,7 @@ Public Class Form1
                     End Using
                 End Using
             End Using
+
         Catch ex As Exception
             MessageBox.Show("Error loading scan results: " & ex.Message)
         End Try
@@ -2664,27 +2683,27 @@ Public Class Form1
                 conn.Open()
 
                 Dim sql As String = "
-                    SELECT t.name AS TableName
-                    FROM sys.tables t
-                    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-                    WHERE s.name = 'tasking_list'
-                    ORDER BY t.name
-                "
+                SELECT name AS SchemaName
+                FROM sys.schemas
+                WHERE name NOT IN ('dbo', 'sys', 'INFORMATION_SCHEMA')
+                ORDER BY name
+            "
 
                 Using cmd As New SqlCommand(sql, conn)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         While reader.Read()
-                            Dim tableName As String = reader("TableName").ToString()
-                            DataGridView8.Rows.Add(tableName)
+                            Dim schemaName As String = reader("SchemaName").ToString()
+                            DataGridView8.Rows.Add(schemaName)
                         End While
                     End Using
                 End Using
             End Using
 
         Catch ex As Exception
-            MessageBox.Show("Error loading tasking list: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show("Error loading schema list: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
+
 
     Private Sub PopulateChannel1(row As DataRow)
         StoreOriginalValue("CH1_ComboBox", ComboBox12.Text)
@@ -3383,6 +3402,16 @@ Public Class Form1
         AddHandler TextBox139.Validating, Sub(s, ev) ValidateEARFCN(TextBox139, ev)
         AddHandler TextBox143.Validating, Sub(s, ev) ValidateEARFCN(TextBox143, ev)
         AddHandler TextBox126.Validating, Sub(s, ev) ValidateEARFCN(TextBox126, ev) ' CH9 EARFCN2
+    End Sub
+
+    Private Sub DataGridView8_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView8.CellClick
+        If e.RowIndex >= 0 Then
+            Dim row As DataGridViewRow = DataGridView8.Rows(e.RowIndex)
+            If row.Cells("tableName").Value IsNot Nothing Then
+                selectedSchema = row.Cells("tableName").Value.ToString()
+                Console.WriteLine("Selected schema: " & selectedSchema)
+            End If
+        End If
     End Sub
 
     Private Sub ValidateEARFCN(textBox As TextBox, e As CancelEventArgs)
