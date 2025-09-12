@@ -57,6 +57,8 @@ Public Class Form1
         {"xlcomindo", My.Resources.XL_Image}
     }
     Private selectedSchema As String = String.Empty
+    Private selectedLongitude As Double
+    Private selectedLatitude As Double
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -504,17 +506,22 @@ Public Class Form1
             Throw New Exception("Log line format not recognized: " & logLine)
         End If
 
-
         Dim imsi As String = m.Groups("imsi").Value
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
+
+        Dim latitude As String = ""
+        Dim longitude As String = ""
+        Dim lac As Integer = m.Groups("lac").Value
+
+        GetCellLocation(mcc, mnc, lac, latitude, longitude)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
 
         Dim row As New Dictionary(Of String, Object) From {
             {"date_event", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")},
-            {"location_name", m.Groups("lac").Value},
+            {"location_name", lac},
             {"source", m.Groups("source").Value},
             {"provider_name", providerName},
             {"mcc", mcc},
@@ -526,19 +533,19 @@ Public Class Form1
             {"time_advance", m.Groups("ta").Value},
             {"phone_model", "N/A"},
             {"event", m.Groups("event").Value},
-            {"longitude", ""},
-            {"latitude", ""}
+            {"longitude", longitude},
+            {"latitude", latitude}
          }
 
         InsertScanResult(row)
     End Sub
 
-
     Public Sub InsertScanResult(row As Dictionary(Of String, Object))
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
 
-            Dim checkSql As String = "SELECT result_no, count FROM scan_results WHERE imsi = @imsi"
+            Dim checkSql As String = $"SELECT result_no, count FROM [{selectedSchema}].scan_results WHERE imsi = @imsi"
             Dim existingResultNo As Object = Nothing
             Dim existingCount As Integer = 0
 
@@ -553,8 +560,8 @@ Public Class Form1
             End Using
 
             If existingResultNo IsNot Nothing Then
-                Dim updateSql As String = "
-                UPDATE scan_results 
+                Dim updateSql As String = $"
+                UPDATE [{selectedSchema}].scan_results 
                 SET count = @newCount,
                     date_event = @date_event,
                     location_name = @location_name,
@@ -587,7 +594,7 @@ Public Class Form1
                 Dim columns = String.Join(",", row.Keys)
                 Dim parameters = String.Join(",", row.Keys.Select(Function(k) "@" & k))
 
-                Dim insertSql As String = $"INSERT INTO scan_results ({columns}) VALUES ({parameters})"
+                Dim insertSql As String = $"INSERT INTO [{selectedSchema}].scan_results ({columns}) VALUES ({parameters})"
 
                 Using insertCmd As New SqlCommand(insertSql, conn)
                     For Each kvp In row
@@ -713,7 +720,7 @@ Public Class Form1
 
 
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, ByRef lat As String, ByRef lon As String)
-        Dim apiKey As String = "YOUR_OPENCELLID_API_KEY"
+        Dim apiKey As String = "pk.de77bc92497c387a48400e40fb6e7c5d"
         Dim url As String = $"https://opencellid.org/cell/get?key={apiKey}&mcc={mcc}&mnc={mnc}&lac={lac}&cellid=0&format=json"
 
         Try
@@ -1377,7 +1384,6 @@ Public Class Form1
         ApplyFilterToDataGridViews()
     End Sub
 
-
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         Try
             udp.Close()
@@ -1516,7 +1522,26 @@ Public Class Form1
         SearchIMSI()
     End Sub
 
+    Private Sub Button35_Click(sender As Object, e As EventArgs) Handles Button35.Click
+        If selectedLongitude <> 0 AndAlso selectedLatitude <> 0 Then
+            Using frm As New Form8(selectedLatitude, selectedLongitude)
+                frm.ShowDialog(Me)
+            End Using
+        Else
+            MessageBox.Show("Please select a row to display map.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        End If
+    End Sub
 
+    Private Sub DataGridView4_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView4.CellClick
+        If e.RowIndex < 0 Then Return
+
+        Dim row As DataGridViewRow = DataGridView4.Rows(e.RowIndex)
+
+        If row.Cells("longitude").Value IsNot Nothing AndAlso row.Cells("latitude").Value IsNot Nothing Then
+            Double.TryParse(row.Cells("longitude").Value.ToString(), selectedLongitude)
+            Double.TryParse(row.Cells("latitude").Value.ToString(), selectedLatitude)
+        End If
+    End Sub
 
     Private Sub LoadChartData()
         Try
