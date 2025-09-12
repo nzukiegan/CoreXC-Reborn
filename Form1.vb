@@ -15,6 +15,11 @@ Imports System.Windows.Forms.DataVisualization.Charting
 Imports System.Security.Authentication.ExtendedProtection
 Imports System.Runtime.Remoting.Channels
 Imports System.Text.Json
+Imports GMap.NET
+Imports GMap.NET.MapProviders
+Imports GMap.NET.WindowsForms
+Imports GMap.NET.WindowsForms.Markers
+Imports GMap.NET.WindowsForms.ToolTips
 
 Public Class Form1
 
@@ -59,6 +64,7 @@ Public Class Form1
     Private selectedSchema As String = String.Empty
     Private selectedLongitude As Double
     Private selectedLatitude As Double
+    Private gmap As GMapControl
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -104,9 +110,12 @@ Public Class Form1
             AddHandler ComboBox14.SelectedIndexChanged, AddressOf TechnologyChanged_CH3
             AddHandler ComboBox15.SelectedIndexChanged, AddressOf TechnologyChanged_CH4
 
+            InitializeGMap()
+
             LoadTaskingList()
 
             StartUdpListener()
+
 
             Task.Run(Sub() UpdateButtonColors())
 
@@ -116,12 +125,54 @@ Public Class Form1
         End Try
     End Sub
 
+    Private Sub InitializeGMap()
+        gmap = New GMapControl()
+        gmap.Dock = DockStyle.Fill
+        Me.Controls.Add(gmap)
+
+        GMaps.Instance.Mode = AccessMode.ServerAndCache
+        gmap.MapProvider = GMapProviders.GoogleMap
+        gmap.MinZoom = 1
+        gmap.MaxZoom = 20
+        gmap.Zoom = 12
+    End Sub
+
+    Private Sub ShowMapDirection(lat As Double, lon As Double, destLat As Double, destLon As Double)
+        gmap.Position = New PointLatLng(lat, lon)
+
+        ' Add markers
+        Dim markers = New GMapOverlay("markers")
+        Dim startMarker As New GMarkerGoogle(New PointLatLng(lat, lon), GMarkerGoogleType.green_dot)
+        Dim endMarker As New GMarkerGoogle(New PointLatLng(destLat, destLon), GMarkerGoogleType.red_dot)
+        markers.Markers.Add(startMarker)
+        markers.Markers.Add(endMarker)
+        gmap.Overlays.Add(markers)
+
+        ' Request route (Google Directions API)
+        Dim route As MapRoute = GMapProviders.GoogleMap.GetRoute(
+            New PointLatLng(lat, lon),
+            New PointLatLng(destLat, destLon),
+            False, ' avoid highways?
+            False, ' walking mode?
+            15     ' zoom level
+        )
+
+        If route IsNot Nothing Then
+            Dim r As New GMapRoute(route.Points, "Route")
+            r.Stroke = New Pen(Color.Blue, 3)
+            Dim routesOverlay As New GMapOverlay("routes")
+            routesOverlay.Routes.Add(r)
+            gmap.Overlays.Add(routesOverlay)
+        Else
+            MessageBox.Show("Route not found. Make sure internet is available or cache contains route data.", "Error")
+        End If
+    End Sub
+
     Private Sub ChannelAnalyzer_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ChannelAnalyzer.SelectedIndexChanged
         If ChannelAnalyzer.SelectedTab Is TabPage2 Then
             LoadBaseStationData1()
         End If
     End Sub
-
 
     Private Sub TechnologyChanged_CH1(sender As Object, e As EventArgs)
         If ComboBox12.SelectedItem IsNot Nothing Then
@@ -1524,9 +1575,8 @@ Public Class Form1
 
     Private Sub Button35_Click(sender As Object, e As EventArgs) Handles Button35.Click
         If selectedLongitude <> 0 AndAlso selectedLatitude <> 0 Then
-            Using frm As New Form8(selectedLatitude, selectedLongitude)
-                frm.ShowDialog(Me)
-            End Using
+            Dim loc = LocationHelper.GetCurrentLocation()
+            ShowMapDirection(loc.Latitude, loc.Longitude, selectedLatitude, selectedLongitude)
         Else
             MessageBox.Show("Please select a row to display map.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
         End If
