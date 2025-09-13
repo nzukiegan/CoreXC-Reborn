@@ -65,6 +65,8 @@ Public Class Form1
     Private selectedLongitude As Double
     Private selectedLatitude As Double
     Private gmap As GMapControl
+    Private selectedBimsi As String
+    Private selectedBImei As String
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -391,7 +393,9 @@ Public Class Form1
     Private Sub LoadBlacklistData()
         Try
             Using connection As New SqlConnection(connectionString)
-                Dim query As String = "SELECT imsi, imei FROM blacklist"
+                Dim tableName As String = "[" & selectedSchema & "].[blacklist]"
+                Dim query As String = "SELECT imsi, imei FROM " & tableName
+
                 Dim adapter As New SqlDataAdapter(query, connection)
                 Dim table As New DataTable()
                 adapter.Fill(table)
@@ -399,7 +403,7 @@ Public Class Form1
                 DataGridView9.DataSource = table
             End Using
         Catch ex As Exception
-            MessageBox.Show("Error loading blacklist: " & ex.Message)
+            MessageBox.Show("Error loading blacklist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -871,13 +875,43 @@ Public Class Form1
         refreshBtn.TextImageRelation = TextImageRelation.ImageBeforeText
         refreshBtn.Text = "Refresh"
         refreshBtn.TextAlign = ContentAlignment.MiddleRight
-        AddHandler refreshBtn.Click, AddressOf RefreshManualBaseStation
+
+        AddHandler refreshBtn.Click, AddressOf refreshBtn_Click
 
         Me.Controls.Add(refreshBtn)
         refreshBtn.BringToFront()
 
         refreshTimer.Interval = 50
     End Sub
+
+    Private Async Sub refreshBtn_Click(sender As Object, e As EventArgs)
+        If isRefreshing Then Return
+        isRefreshing = True
+
+        refreshTimer.Start()
+
+        Try
+            Await Task.Run(Sub()
+                               LoadBaseStationData()
+                               LoadBaseStationData1()
+                               LoadBlacklistData()
+                               LoadWhitelistData()
+                               LoadChartData()
+                               LoadScanResults()
+                           End Sub)
+
+            MessageBox.Show("Data refreshed successfully.", "Refreshed",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            MessageBox.Show("Error refreshing data: " & ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            refreshTimer.Stop()
+            refreshBtn.Image = refreshIcon
+            isRefreshing = False
+        End Try
+    End Sub
+
 
 
     Private Sub refreshTimer_Tick(sender As Object, e As EventArgs) Handles refreshTimer.Tick
@@ -893,25 +927,6 @@ Public Class Form1
         End Using
 
         refreshBtn.Image = rotated
-    End Sub
-
-    Private Async Sub RefreshManualBaseStation(sender As Object, e As EventArgs)
-        If isRefreshing Then Return
-        isRefreshing = True
-
-        refreshTimer.Start()
-
-        Try
-            Await Task.Run(Sub()
-                               LoadBaseStationData()
-                           End Sub)
-        Catch ex As Exception
-            MessageBox.Show("Error refreshing: " & ex.Message)
-        Finally
-            refreshTimer.Stop()
-            refreshBtn.Image = refreshIcon
-            isRefreshing = False
-        End Try
     End Sub
 
 
@@ -1592,15 +1607,16 @@ Public Class Form1
             Double.TryParse(row.Cells("latitude").Value.ToString(), selectedLatitude)
         End If
     End Sub
-
     Private Sub LoadChartData()
         Try
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
+                Dim tableName As String = "[" & selectedSchema & "].[scan_results]"
+
                 Dim query As String = "
                 SELECT source AS channel, COUNT(imsi) AS scan_count
-                FROM scan_results
+                FROM " & tableName & "
                 WHERE source IS NOT NULL AND source <> ''
                 GROUP BY source
                 ORDER BY channel"
@@ -1619,7 +1635,7 @@ Public Class Form1
                 End Using
             End Using
         Catch ex As Exception
-            MessageBox.Show("Error loading chart data: " & ex.Message)
+            MessageBox.Show("Error loading chart data: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -1627,7 +1643,9 @@ Public Class Form1
     Private Sub LoadWhitelistData()
         Try
             Using connection As New SqlConnection(connectionString)
-                Dim query As String = "SELECT imsi FROM whitelist"
+                Dim tableName As String = "[" & selectedSchema & "].[whitelist]"
+                Dim query As String = "SELECT imsi FROM " & tableName
+
                 Dim adapter As New SqlDataAdapter(query, connection)
                 Dim table As New DataTable()
                 adapter.Fill(table)
@@ -1635,9 +1653,10 @@ Public Class Form1
                 DataGridView10.DataSource = table
             End Using
         Catch ex As Exception
-            MessageBox.Show("Error loading whitelist: " & ex.Message)
+            MessageBox.Show("Error loading whitelist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
+
 
 
     Public Sub LoadBaseStationData1()
@@ -2127,6 +2146,57 @@ Public Class Form1
         Return Nothing
     End Function
 
+    Private Sub DataGridView9_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView9.CellClick
+        If e.RowIndex >= 0 Then
+            Dim row As DataGridViewRow = DataGridView9.Rows(e.RowIndex)
+
+            selectedBimsi = row.Cells("imsi").Value.ToString()
+            selectedBImei = row.Cells("imei").Value.ToString()
+        End If
+    End Sub
+
+    Private Sub Button77_Click(sender As Object, e As EventArgs) Handles Button77.Click
+        If String.IsNullOrEmpty(selectedBimsi) OrElse String.IsNullOrEmpty(selectedBImei) Then
+            MessageBox.Show("Please select a target from the list first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim result As DialogResult = MessageBox.Show(
+        "Are you sure you want to delete this target from the blacklist?" & vbCrLf &
+        "IMSI: " & selectedBimsi & vbCrLf &
+        "IMEI: " & selectedBImei,
+        "Confirm Deletion",
+        MessageBoxButtons.OKCancel,
+        MessageBoxIcon.Question
+    )
+
+        If result = DialogResult.OK Then
+            Try
+                Using conn As New SqlConnection(connectionString)
+                    conn.Open()
+
+                    Dim tableName As String = "[" & selectedSchema & "].[blacklist]"
+                    Dim sql As String = "DELETE FROM " & tableName & " WHERE imsi = @imsi AND imei = @imei"
+
+                    Using cmd As New SqlCommand(sql, conn)
+                        cmd.Parameters.AddWithValue("@imsi", selectedBimsi)
+                        cmd.Parameters.AddWithValue("@imei", selectedBImei)
+                        Dim rowsAffected As Integer = cmd.ExecuteNonQuery()
+
+                        If rowsAffected > 0 Then
+                            MessageBox.Show("Target deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        Else
+                            MessageBox.Show("No matching record found to delete.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        End If
+                    End Using
+                End Using
+            Catch ex As Exception
+                MessageBox.Show("Error deleting target: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End Try
+        End If
+    End Sub
+
+
     Private Function ValidateChannelFields(channel As Integer, textBoxes As TextBox(), comboBox As ComboBox) As Boolean
 
         Dim isValid As Boolean = True
@@ -2334,11 +2404,13 @@ Public Class Form1
     End Sub
 
     Private Sub Button75_Click(sender As Object, e As EventArgs) Handles Button75.Click
-        Formblacklist.Show()
+        Dim f As New Formblacklist(selectedSchema)
+        f.ShowDialog()
     End Sub
 
     Private Sub Button78_Click(sender As Object, e As EventArgs) Handles Button78.Click
-        Form3.Show()
+        Dim f As New Form3(selectedSchema)
+        f.ShowDialog()
     End Sub
 
     Private Sub Button73_Click(sender As Object, e As EventArgs) Handles Button73.Click

@@ -934,6 +934,7 @@ Partial Class Form1
         Me.Column1.MinimumWidth = 8
         Me.Column1.Name = "Column1"
         Me.Column1.Width = 150
+        Me.Column1.DataPropertyName = "imsi"
         '
         'Column2
         '
@@ -941,6 +942,7 @@ Partial Class Form1
         Me.Column2.MinimumWidth = 8
         Me.Column2.Name = "Column2"
         Me.Column2.Width = 150
+        Me.Column2.DataPropertyName = "imei"
         '
         'GroupBox52
         '
