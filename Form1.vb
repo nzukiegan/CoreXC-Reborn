@@ -596,26 +596,26 @@ Public Class Form1
     End Sub
 
     Public Sub InsertScanResult(row As Dictionary(Of String, Object))
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
 
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
+                Dim checkSql As String = $"SELECT result_no, count FROM [{selectedSchema}].scan_results WHERE imsi = @imsi"
+                Dim existingResultNo As Object = Nothing
+                Dim existingCount As Integer = 0
 
-            Dim checkSql As String = $"SELECT result_no, count FROM [{selectedSchema}].scan_results WHERE imsi = @imsi"
-            Dim existingResultNo As Object = Nothing
-            Dim existingCount As Integer = 0
-
-            Using checkCmd As New SqlCommand(checkSql, conn)
-                checkCmd.Parameters.AddWithValue("@imsi", row("imsi"))
-                Using reader = checkCmd.ExecuteReader()
-                    If reader.Read() Then
-                        existingResultNo = reader("result_no")
-                        existingCount = Convert.ToInt32(reader("count"))
-                    End If
+                Using checkCmd As New SqlCommand(checkSql, conn)
+                    checkCmd.Parameters.AddWithValue("@imsi", row("imsi"))
+                    Using reader = checkCmd.ExecuteReader()
+                        If reader.Read() Then
+                            existingResultNo = reader("result_no")
+                            existingCount = Convert.ToInt32(reader("count"))
+                        End If
+                    End Using
                 End Using
-            End Using
 
-            If existingResultNo IsNot Nothing Then
-                Dim updateSql As String = $"
+                If existingResultNo IsNot Nothing Then
+                    Dim updateSql As String = $"
                 UPDATE [{selectedSchema}].scan_results 
                 SET count = @newCount,
                     date_event = @date_event,
@@ -634,32 +634,136 @@ Public Class Form1
                     latitude = @latitude
                 WHERE result_no = @result_no"
 
-                Using updateCmd As New SqlCommand(updateSql, conn)
-                    updateCmd.Parameters.AddWithValue("@newCount", existingCount + 1)
-                    updateCmd.Parameters.AddWithValue("@result_no", existingResultNo)
+                    Using updateCmd As New SqlCommand(updateSql, conn)
+                        updateCmd.Parameters.AddWithValue("@newCount", existingCount + 1)
+                        updateCmd.Parameters.AddWithValue("@result_no", existingResultNo)
 
-                    For Each kvp In row
-                        updateCmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
+                        For Each kvp In row
+                            updateCmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
+                        Next
+
+                        updateCmd.ExecuteNonQuery()
+                    End Using
+                Else
+                    row("count") = 1
+                    Dim columns = String.Join(",", row.Keys)
+                    Dim parameters = String.Join(",", row.Keys.Select(Function(k) "@" & k))
+
+                    Dim insertSql As String = $"INSERT INTO [{selectedSchema}].scan_results ({columns}) VALUES ({parameters})"
+
+                    Using insertCmd As New SqlCommand(insertSql, conn)
+                        For Each kvp In row
+                            insertCmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
+                        Next
+                        insertCmd.ExecuteNonQuery()
+                    End Using
+                End If
+
+                Dim sourceVal As String = Nothing
+                If row.ContainsKey("source") AndAlso row("source") IsNot Nothing Then
+                    sourceVal = row("source").ToString()
+                End If
+
+                If String.IsNullOrWhiteSpace(sourceVal) Then
+                    Return
+                End If
+
+                Dim schemas As New List(Of String)()
+                Dim schemasSql As String = "SELECT s.name FROM sys.schemas s JOIN sys.tables t ON t.schema_id = s.schema_id WHERE t.name = 'scan_results'"
+
+                Using schemaCmd As New SqlCommand(schemasSql, conn)
+                    Using rdr = schemaCmd.ExecuteReader()
+                        While rdr.Read()
+                            schemas.Add(rdr.GetString(0))
+                        End While
+                    End Using
+                End Using
+
+                Dim uniqueImsiCount As Integer = 0
+                If schemas.Count > 0 Then
+                    Dim parts As New List(Of String)
+                    For Each s In schemas
+                        parts.Add($"SELECT imsi FROM [{s}].scan_results WHERE source = @source AND imsi IS NOT NULL")
                     Next
 
-                    updateCmd.ExecuteNonQuery()
-                End Using
-            Else
-                row("count") = 1
-                Dim columns = String.Join(",", row.Keys)
-                Dim parameters = String.Join(",", row.Keys.Select(Function(k) "@" & k))
+                    Dim unionSql As String = String.Join(" UNION ", parts)
+                    Dim countSql As String = $"SELECT COUNT(*) FROM ({unionSql}) AS u"
 
-                Dim insertSql As String = $"INSERT INTO [{selectedSchema}].scan_results ({columns}) VALUES ({parameters})"
+                    Using countCmd As New SqlCommand(countSql, conn)
+                        countCmd.Parameters.AddWithValue("@source", sourceVal)
+                        Dim result = countCmd.ExecuteScalar()
+                        If result IsNot Nothing AndAlso Not IsDBNull(result) Then
+                            uniqueImsiCount = Convert.ToInt32(result)
+                        End If
+                    End Using
+                End If
 
-                Using insertCmd As New SqlCommand(insertSql, conn)
-                    For Each kvp In row
-                        insertCmd.Parameters.AddWithValue("@" & kvp.Key, If(kvp.Value, DBNull.Value))
-                    Next
-                    insertCmd.ExecuteNonQuery()
-                End Using
-            End If
-        End Using
+                Dim channelNumber As Integer = -1
+                Dim m As Text.RegularExpressions.Match = Regex.Match(sourceVal, "CH\s*(\d+)", RegexOptions.IgnoreCase)
+                If m.Success Then
+                    Integer.TryParse(m.Groups(1).Value, channelNumber)
+                End If
+
+                If channelNumber > 0 Then
+                    Dim existsSql As String = "SELECT COUNT(*) FROM base_stations WHERE channel_number = @channel"
+                    Dim existsCount As Integer = 0
+                    Using existsCmd As New SqlCommand(existsSql, conn)
+                        existsCmd.Parameters.AddWithValue("@channel", channelNumber)
+                        existsCount = Convert.ToInt32(existsCmd.ExecuteScalar())
+                    End Using
+
+                    If existsCount > 0 Then
+                        Dim updBaseSql As String = "UPDATE base_stations SET count = @count, last_updated = SYSUTCDATETIME() WHERE channel_number = @channel"
+                        Using updCmd As New SqlCommand(updBaseSql, conn)
+                            updCmd.Parameters.AddWithValue("@count", uniqueImsiCount)
+                            updCmd.Parameters.AddWithValue("@channel", channelNumber)
+                            updCmd.ExecuteNonQuery()
+                        End Using
+                    Else
+                        Dim insBaseSql As String = "INSERT INTO base_stations (channel_number, count, last_updated) VALUES (@channel, @count, SYSUTCDATETIME())"
+                        Using insCmd As New SqlCommand(insBaseSql, conn)
+                            insCmd.Parameters.AddWithValue("@channel", channelNumber)
+                            insCmd.Parameters.AddWithValue("@count", uniqueImsiCount)
+                            insCmd.ExecuteNonQuery()
+                        End Using
+                    End If
+                End If
+
+                Dim channelToTextBox As New Dictionary(Of Integer, String) From {
+                {1, "TextBox9"},
+                {2, "TextBox10"},
+                {3, "TextBox16"},
+                {4, "TextBox22"},
+                {5, "TextBox28"},
+                {6, "TextBox34"},
+                {7, "TextBox47"},
+                {8, "TextBox54"},
+                {9, "TextBox89"},
+                {11, "TextBox61"},
+                {12, "TextBox68"},
+                {13, "TextBox75"},
+                {14, "TextBox82"}
+            }
+
+                If channelNumber > 0 AndAlso channelToTextBox.ContainsKey(channelNumber) Then
+                    Dim tbName As String = channelToTextBox(channelNumber)
+                    Dim foundControls() As Control = Me.Controls.Find(tbName, True)
+                    If foundControls IsNot Nothing AndAlso foundControls.Length > 0 Then
+                        Dim tb As Control = foundControls(0)
+                        Dim newText As String = uniqueImsiCount.ToString()
+                        If tb.InvokeRequired Then
+                            tb.Invoke(Sub() tb.Text = newText)
+                        Else
+                            tb.Text = newText
+                        End If
+                    End If
+                End If
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine("InsertScanResult error: " & ex.ToString())
+        End Try
     End Sub
+
 
     Private Sub updateScanResultDv(row As Dictionary(Of String, Object))
         Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
@@ -911,7 +1015,6 @@ Public Class Form1
             isRefreshing = False
         End Try
     End Sub
-
 
 
     Private Sub refreshTimer_Tick(sender As Object, e As EventArgs) Handles refreshTimer.Tick
