@@ -49,8 +49,8 @@ Public Class Formblacklist
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
-
             MessageBox.Show("Target added to blacklist successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Me.Close()
         Catch ex As Exception
             MessageBox.Show("Error adding to blacklist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try

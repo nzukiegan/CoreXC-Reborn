@@ -31,10 +31,9 @@ Public Class Form3
                 End Using
             End Using
 
-            MessageBox.Show("IMSI added to whitelist successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Me.DialogResult = DialogResult.OK
-            Me.Close()
 
+            MessageBox.Show("IMSI added to whitelist successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Me.Close()
         Catch ex As Exception
             MessageBox.Show("Error inserting IMSI: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
