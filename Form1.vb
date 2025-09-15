@@ -101,6 +101,7 @@ Public Class Form1
 
             Column3.DataPropertyName = "tableName"
 
+
             StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
 
