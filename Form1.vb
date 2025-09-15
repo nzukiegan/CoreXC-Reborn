@@ -760,6 +760,8 @@ Public Class Form1
         Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
         If dt Is Nothing Then Return
 
+        Console.WriteLine("DataTable has " & dt.Rows.Count & " rows")
+
         If Not dt.Columns.Contains("rat") Then
             dt.Columns.Add("rat", GetType(String))
         End If
