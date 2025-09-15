@@ -387,12 +387,19 @@ Public Class Form1
                 Dim table As New DataTable()
                 adapter.Fill(table)
 
-                DataGridView9.DataSource = table
+                If DataGridView9.InvokeRequired Then
+                    DataGridView9.Invoke(Sub()
+                                             DataGridView9.DataSource = table
+                                         End Sub)
+                Else
+                    DataGridView9.DataSource = table
+                End If
             End Using
         Catch ex As Exception
             MessageBox.Show("Error loading blacklist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
+
 
     Private Sub SearchIMSI()
         Dim searchImsi As String = TextBox96.Text.Trim()
@@ -1748,13 +1755,18 @@ Public Class Form1
                 Dim table As New DataTable()
                 adapter.Fill(table)
 
-                DataGridView10.DataSource = table
+                If DataGridView10.InvokeRequired Then
+                    DataGridView10.Invoke(Sub()
+                                              DataGridView10.DataSource = table
+                                          End Sub)
+                Else
+                    DataGridView10.DataSource = table
+                End If
             End Using
         Catch ex As Exception
             MessageBox.Show("Error loading whitelist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
-
 
 
     Public Sub LoadBaseStationData1()
@@ -2512,7 +2524,8 @@ Public Class Form1
     End Sub
 
     Private Sub Button73_Click(sender As Object, e As EventArgs) Handles Button73.Click
-        Form4.Show()
+        Dim f As New Form4()
+        f.ShowDialog()
     End Sub
 
     Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
