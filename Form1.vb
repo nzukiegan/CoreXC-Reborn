@@ -1009,6 +1009,7 @@ Public Class Form1
                                LoadWhitelistData()
                                LoadChartData()
                                LoadScanResults()
+                               LoadTaskingList()
                            End Sub)
 
             MessageBox.Show("Data refreshed successfully.", "Refreshed",
