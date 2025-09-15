@@ -27,7 +27,9 @@ Public Class Formblacklist
     End Sub
 
     Public Sub AddToBlacklist(targetName As String, imei As String, imsi As String)
-        Console.WriteLine(imei, imsi, targetName)
+        Console.WriteLine("Target name " & targetName)
+        Console.WriteLine("Imei " & imei)
+        Console.WriteLine("Imsi " & imsi)
         Try
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
