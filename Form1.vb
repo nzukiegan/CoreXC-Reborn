@@ -2524,7 +2524,7 @@ Public Class Form1
 
     End Sub
 
-    Private Sub Button79_Click(sender As Object, e As EventArgs) Handles Button75.Click
+    Private Sub Button79_Click(sender As Object, e As EventArgs) Handles Button79.Click
         If String.IsNullOrEmpty(selectedWimsi) Then
             MessageBox.Show("Please select imsi from the list first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
