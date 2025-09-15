@@ -63,8 +63,8 @@ Public Class Form1
         {"xlcomindo", My.Resources.XL_Image}
     }
     Private selectedSchema As String = String.Empty
-    Private selectedLongitude As Double
-    Private selectedLatitude As Double
+    Private selectedLongitude As Double = 106.958104
+    Private selectedLatitude As Double = -6.264
     Private gmap As GMapControl
     Private selectedBimsi As String
     Private selectedWimsi As String
@@ -563,19 +563,20 @@ Public Class Form1
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
-        Dim latitude As String = ""
-        Dim longitude As String = ""
+        Dim latitude As Double = ""
+        Dim longitude As Double = ""
+        Dim address As String = ""
         Dim lac As Integer = m.Groups("lac").Value
         Dim cid As Integer = getCellId(m.Groups("source").Value)
 
-        GetCellLocation(mcc, mnc, 0, lac, latitude, longitude)
+        GetCellLocation(mcc, mnc, 0, lac, latitude, longitude, address)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
 
         Dim row As New Dictionary(Of String, Object) From {
             {"date_event", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")},
-            {"location_name", lac},
+            {"location_name", address},
             {"source", m.Groups("source").Value},
             {"provider_name", providerName},
             {"mcc", mcc},
@@ -914,9 +915,7 @@ Public Class Form1
         Console.WriteLine("UpdateScanResultDv completed")
     End Sub
 
-
-
-    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As String, ByRef lon As String)
+    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As String, ByRef lon As String, ByRef add As String)
         Dim apiKey As String = "pk.3b202963e54283dd02838406ae4df7be"
         Dim url As String = "https://us1.unwiredlabs.com/v2/process"
 
@@ -942,6 +941,7 @@ Public Class Form1
                 If json("status") IsNot Nothing AndAlso json("status").ToString().ToLower() = "ok" Then
                     lat = json("lat").ToString()
                     lon = json("lon").ToString()
+                    add = json("address").ToString()
                 Else
                     lat = ""
                     lon = ""
