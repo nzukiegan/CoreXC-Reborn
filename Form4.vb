@@ -73,6 +73,7 @@ Public Class Form4
                     BEGIN
                         CREATE TABLE [{schemaName}].[blacklist] (
                             blacklist_id INT PRIMARY KEY IDENTITY(1,1),
+                            name NVARCHAR(20),
                             imei NVARCHAR(50),
                             imsi NVARCHAR(64),
                             created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
