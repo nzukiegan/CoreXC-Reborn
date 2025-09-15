@@ -1579,7 +1579,9 @@ Public Class Form1
 
     Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
         selectedSchema = SelectedSchema1
-        refresh()
+        LoadTaskingList()
+        LoadBlacklistData()
+        LoadWhitelistData()
     End Sub
 
 
