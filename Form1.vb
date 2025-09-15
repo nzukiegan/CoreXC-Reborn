@@ -66,6 +66,7 @@ Public Class Form1
     Private selectedLatitude As Double
     Private gmap As GMapControl
     Private selectedBimsi As String
+    Private selectedWimsi As String
     Private selectedBImei As String
     Private SelectedSchema1 As String = String.Empty
 
@@ -2271,6 +2272,13 @@ Public Class Form1
         End If
     End Sub
 
+    Private Sub DataGridView10_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView10.CellClick
+        If e.RowIndex >= 0 Then
+            Dim row As DataGridViewRow = DataGridView10.Rows(e.RowIndex)
+            selectedWimsi = row.Cells("Column4").Value.ToString()
+        End If
+    End Sub
+
     Private Sub Button77_Click(sender As Object, e As EventArgs) Handles Button77.Click
         If String.IsNullOrEmpty(selectedBimsi) OrElse String.IsNullOrEmpty(selectedBImei) Then
             MessageBox.Show("Please select a target from the list first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -2306,6 +2314,7 @@ Public Class Form1
                         End If
                     End Using
                 End Using
+                LoadBlacklistData()
             Catch ex As Exception
                 MessageBox.Show("Error deleting target: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
             End Try
@@ -2517,6 +2526,46 @@ Public Class Form1
 
     Private Sub DataGridView4_CellContentClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView4.CellContentClick
 
+    End Sub
+
+    Private Sub Button79_Click(sender As Object, e As EventArgs) Handles Button75.Click
+        If String.IsNullOrEmpty(selectedWimsi) Then
+            MessageBox.Show("Please select imsi from the list first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim result As DialogResult = MessageBox.Show(
+        "Are you sure you want to delete this imsi from the whitelist?" & vbCrLf &
+        "IMSI: " & selectedWimsi,
+        "Confirm Deletion",
+        MessageBoxButtons.OKCancel,
+        MessageBoxIcon.Question
+    )
+
+        If result = DialogResult.OK Then
+            Try
+                Using conn As New SqlConnection(connectionString)
+                    conn.Open()
+
+                    Dim tableName As String = "[" & selectedSchema & "].[whitelist]"
+                    Dim sql As String = "DELETE FROM " & tableName & " WHERE imsi = @imsi"
+
+                    Using cmd As New SqlCommand(sql, conn)
+                        cmd.Parameters.AddWithValue("@imsi", selectedWimsi)
+                        Dim rowsAffected As Integer = cmd.ExecuteNonQuery()
+
+                        If rowsAffected > 0 Then
+                            MessageBox.Show("Whitelist deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        Else
+                            MessageBox.Show("No matching record found to delete.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        End If
+                    End Using
+                End Using
+                LoadWhitelistData()
+            Catch ex As Exception
+                MessageBox.Show("Error deleting whitelist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End Try
+        End If
     End Sub
 
     Private Sub Button75_Click(sender As Object, e As EventArgs) Handles Button75.Click
