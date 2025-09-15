@@ -595,6 +595,7 @@ Public Class Form1
          }
 
         InsertScanResult(row)
+        UpdateScanResultDv(row)
     End Sub
 
     Public Sub InsertScanResult(row As Dictionary(Of String, Object))
@@ -767,7 +768,7 @@ Public Class Form1
     End Sub
 
 
-    Private Sub updateScanResultDv(row As Dictionary(Of String, Object))
+    Private Sub UpdateScanResultDv(row As Dictionary(Of String, Object))
         Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
         If dt Is Nothing Then Return
 
@@ -897,6 +898,7 @@ Public Class Form1
                 lon = ""
             End If
         Catch ex As Exception
+
             lat = ""
             lon = ""
         End Try
