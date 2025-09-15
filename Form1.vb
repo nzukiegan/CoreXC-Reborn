@@ -99,8 +99,6 @@ Public Class Form1
             Chart1.ChartAreas(0).AxisY.Title = "Scan Count"
             Chart1.ChartAreas(0).AxisX.Interval = 1
 
-            Column3.DataPropertyName = "tableName"
-
 
             StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
@@ -3660,8 +3658,8 @@ Public Class Form1
     Private Sub DataGridView8_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView8.CellClick
         If e.RowIndex >= 0 Then
             Dim row As DataGridViewRow = DataGridView8.Rows(e.RowIndex)
-            If row.Cells("tableName").Value IsNot Nothing Then
-                selectedSchema = row.Cells("tableName").Value.ToString()
+            If row.Cells("Column3").Value IsNot Nothing Then
+                selectedSchema = row.Cells("Column3").Value.ToString()
                 Console.WriteLine("Selected schema: " & selectedSchema)
             End If
         End If
