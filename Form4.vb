@@ -13,7 +13,6 @@ Public Class Form4
             Return
         End If
 
-        ' Ensure schema name starts with prefix
         Dim schemaName As String
         If rawSchemaName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
             schemaName = rawSchemaName
@@ -25,7 +24,6 @@ Public Class Form4
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
-                ' Create schema if not exists
                 Dim schemaSql As String =
                     $"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schemaName}')
                         EXEC('CREATE SCHEMA [{schemaName}]')"
@@ -64,7 +62,6 @@ Public Class Form4
                     cmd.ExecuteNonQuery()
                 End Using
 
-                ' Create blacklist table
                 Dim blacklistSql As String = $"
                     IF NOT EXISTS (
                         SELECT * FROM sys.tables 
@@ -102,8 +99,8 @@ Public Class Form4
 
             End Using
 
-            MessageBox.Show($"Schema '{schemaName}' created (if not existed) with tables scan_results, blacklist, and whitelist.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
-
+            MessageBox.Show($"Database '{schemaName}' created", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Me.Close()
         Catch ex As Exception
             MessageBox.Show("Error creating schema/tables: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try

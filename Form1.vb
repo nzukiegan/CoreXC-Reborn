@@ -2519,16 +2519,19 @@ Public Class Form1
     Private Sub Button75_Click(sender As Object, e As EventArgs) Handles Button75.Click
         Dim f As New Formblacklist(selectedSchema)
         f.ShowDialog()
+        refresh()
     End Sub
 
     Private Sub Button78_Click(sender As Object, e As EventArgs) Handles Button78.Click
         Dim f As New Form3(selectedSchema)
         f.ShowDialog()
+        refresh()
     End Sub
 
     Private Sub Button73_Click(sender As Object, e As EventArgs) Handles Button73.Click
         Dim f As New Form4()
         f.ShowDialog()
+        refresh()
     End Sub
 
     Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
