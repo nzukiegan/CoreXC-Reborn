@@ -516,7 +516,7 @@ Public Class Form1
                     Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
                     Dim response As String = Encoding.ASCII.GetString(result.Buffer)
                     Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
-                    Console.WriteLine("Sener Ip: " & senderIp)
+                    Console.WriteLine("Sender Ip: " & senderIp)
                     If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
                         Me.Invoke(Sub()
                                       processResponse(response)
@@ -582,7 +582,7 @@ Public Class Form1
             {"imsi", imsi},
             {"imei", m.Groups("imei").Value},
             {"guti", "-"},
-            {"signal_Level", m.Groups("ulSig").Value},
+            {"signal_Level", m.Groups("ulsig").Value},
             {"time_advance", m.Groups("ta").Value},
             {"phone_model", "N/A"},
             {"event", m.Groups("event").Value},
