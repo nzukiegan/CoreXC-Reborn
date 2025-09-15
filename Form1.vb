@@ -63,8 +63,8 @@ Public Class Form1
         {"xlcomindo", My.Resources.XL_Image}
     }
     Private selectedSchema As String = String.Empty
-    Private selectedLongitude As Double = 106.958104
-    Private selectedLatitude As Double = -6.264
+    Private selectedLongitude As Double
+    Private selectedLatitude As Double
     Private gmap As GMapControl
     Private selectedBimsi As String
     Private selectedWimsi As String
@@ -1748,9 +1748,6 @@ Public Class Form1
     Private Sub Button35_Click(sender As Object, e As EventArgs) Handles Button35.Click
         If selectedLongitude <> 0 AndAlso selectedLatitude <> 0 Then
             Dim loc = LocationHelper.GetCurrentLocation()
-            Console.WriteLine("My location")
-            Console.WriteLine(loc.Latitude)
-            Console.WriteLine(loc.Longitude)
             ShowMapDirection(loc.Latitude, loc.Longitude, selectedLatitude, selectedLongitude)
         Else
             MessageBox.Show("Please select a row to display map.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
