@@ -283,10 +283,8 @@ Public Class Form1
         Return udpClients(address)
     End Function
 
-    Private Async Sub StartCellOperation(address As String, button As Button)
+    Private Async Sub StartCellOperation(address As String)
         Console.WriteLine("Start cell operation callled, address: " & address)
-        button.Enabled = False
-
         Try
             Dim command As String = "StartCell"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
@@ -294,30 +292,18 @@ Public Class Form1
 
         Catch ex As Exception
             Console.WriteLine($"Error communicating with {address}: {ex.Message}")
-        Finally
-            button.Enabled = True
-            button.Text = "Start"
         End Try
     End Sub
 
-    Private Async Sub StopCellOperation(address As String, button As Button)
+    Private Async Sub StopCellOperation(address As String)
         Console.WriteLine("Stop cell operation callled, address: " & address)
-        Dim originalText As String = button.Text
-
         Try
             Dim command As String = "StopCell"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
             udp.Send(data, data.Length, address, 9001)
 
         Catch ex As SocketException
-            MessageBox.Show($"Could Not connect To cell at {address}. Please check the connection.", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        Catch ex As TimeoutException
-            MessageBox.Show($"Timeout While communicating With cell at {address}.", "Timeout Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-        Catch ex As Exception
-            MessageBox.Show($"Error stopping cell at {address}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        Finally
-            button.Enabled = True
-            button.Text = originalText
+            Console.WriteLine($"Error stopping cell at {address}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -4007,107 +3993,107 @@ Public Class Form1
 
 
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
-        StartCellOperation("192.168.1.90", Button6)
+        StartCellOperation("192.168.1.90")
     End Sub
 
     Private Sub Button8_Click(sender As Object, e As EventArgs) Handles Button8.Click
-        StartCellOperation("192.168.1.91", Button8)
+        StartCellOperation("192.168.1.91")
     End Sub
 
     Private Sub Button11_Click(sender As Object, e As EventArgs) Handles Button11.Click
-        StartCellOperation("192.168.1.92", Button11)
+        StartCellOperation("192.168.1.92")
     End Sub
 
     Private Sub Button13_Click(sender As Object, e As EventArgs) Handles Button13.Click
-        StartCellOperation("192.168.1.93", Button13)
+        StartCellOperation("192.168.1.93")
     End Sub
 
     Private Sub Button15_Click(sender As Object, e As EventArgs) Handles Button15.Click
-        StartCellOperation("192.168.1.94", Button15)
+        StartCellOperation("192.168.1.94")
     End Sub
 
     Private Sub Button17_Click(sender As Object, e As EventArgs) Handles Button17.Click
-        StartCellOperation("192.168.1.95", Button17)
+        StartCellOperation("192.168.1.95")
     End Sub
 
     Private Sub Button19_Click(sender As Object, e As EventArgs) Handles Button19.Click
-        StartCellOperation("192.168.1.96", Button19)
+        StartCellOperation("192.168.1.96")
     End Sub
 
     Private Sub Button21_Click(sender As Object, e As EventArgs) Handles Button21.Click
-        StartCellOperation("192.168.1.97", Button21)
+        StartCellOperation("192.168.1.97")
     End Sub
 
     Private Sub Button31_Click(sender As Object, e As EventArgs) Handles Button31.Click
-        StartCellOperation("192.168.1.98", Button31)
+        StartCellOperation("192.168.1.98")
     End Sub
 
     Private Sub Button23_Click(sender As Object, e As EventArgs) Handles Button23.Click
-        StartCellOperation("192.168.1.101", Button23)
+        StartCellOperation("192.168.1.101")
     End Sub
 
     Private Sub Button25_Click(sender As Object, e As EventArgs) Handles Button25.Click
-        StartCellOperation("192.168.1.102", Button25)
+        StartCellOperation("192.168.1.102")
     End Sub
 
     Private Sub Button27_Click(sender As Object, e As EventArgs) Handles Button27.Click
-        StartCellOperation("192.168.1.103", Button27)
+        StartCellOperation("192.168.1.103")
     End Sub
 
     Private Sub Button29_Click(sender As Object, e As EventArgs) Handles Button29.Click
-        StartCellOperation("192.168.1.104", Button29)
+        StartCellOperation("192.168.1.104")
     End Sub
 
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
-        StopCellOperation("192.168.1.90", Button7)
+        StopCellOperation("192.168.1.90")
     End Sub
 
     Private Sub Button9_Click(sender As Object, e As EventArgs) Handles Button9.Click
-        StopCellOperation("192.168.1.91", Button9)
+        StopCellOperation("192.168.1.91")
     End Sub
 
-    Private Sub Button10_Click(sender As Object, e As EventArgs) Handles Button12.Click
-        StopCellOperation("192.168.1.92", Button12)
+    Private Sub Button10_Click(sender As Object, e As EventArgs) Handles Button10.Click
+        StopCellOperation("192.168.1.92")
     End Sub
 
-    Private Sub Button12_Click(sender As Object, e As EventArgs) Handles Button14.Click
-        StopCellOperation("192.168.1.93", Button14)
+    Private Sub Button12_Click(sender As Object, e As EventArgs) Handles Button12.Click
+        StopCellOperation("192.168.1.93")
     End Sub
 
-    Private Sub Button14_Click(sender As Object, e As EventArgs) Handles Button16.Click
-        StopCellOperation("192.168.1.94", Button16)
+    Private Sub Button14_Click(sender As Object, e As EventArgs) Handles Button14.Click
+        StopCellOperation("192.168.1.94")
     End Sub
 
-    Private Sub Button16_Click(sender As Object, e As EventArgs) Handles Button18.Click
-        StopCellOperation("192.168.1.95", Button18)
+    Private Sub Button16_Click(sender As Object, e As EventArgs) Handles Button16.Click
+        StopCellOperation("192.168.1.95")
     End Sub
 
-    Private Sub Button18_Click(sender As Object, e As EventArgs) Handles Button20.Click
-        StopCellOperation("192.168.1.96", Button20)
+    Private Sub Button18_Click(sender As Object, e As EventArgs) Handles Button18.Click
+        StopCellOperation("192.168.1.96")
     End Sub
 
-    Private Sub Button20_Click(sender As Object, e As EventArgs) Handles Button22.Click
-        StopCellOperation("192.168.1.97", Button22)
+    Private Sub Button20_Click(sender As Object, e As EventArgs) Handles Button20.Click
+        StopCellOperation("192.168.1.97")
     End Sub
 
-    Private Sub Button30_Click(sender As Object, e As EventArgs) Handles Button32.Click
-        StopCellOperation("192.168.1.98", Button32)
+    Private Sub Button30_Click(sender As Object, e As EventArgs) Handles Button30.Click
+        StopCellOperation("192.168.1.98")
     End Sub
 
-    Private Sub Button22_Click(sender As Object, e As EventArgs) Handles Button24.Click
-        StopCellOperation("192.168.1.101", Button24)
+    Private Sub Button22_Click(sender As Object, e As EventArgs) Handles Button22.Click
+        StopCellOperation("192.168.1.101")
     End Sub
 
-    Private Sub Button24_Click(sender As Object, e As EventArgs) Handles Button26.Click
-        StopCellOperation("192.168.1.102", Button26)
+    Private Sub Button24_Click(sender As Object, e As EventArgs) Handles Button24.Click
+        StopCellOperation("192.168.1.102")
     End Sub
 
-    Private Sub Button26_Click(sender As Object, e As EventArgs) Handles Button28.Click
-        StopCellOperation("192.168.1.103", Button28)
+    Private Sub Button26_Click(sender As Object, e As EventArgs) Handles Button26.Click
+        StopCellOperation("192.168.1.103")
     End Sub
 
-    Private Sub Button28_Click(sender As Object, e As EventArgs) Handles Button30.Click
-        StopCellOperation("192.168.1.104", Button30)
+    Private Sub Button28_Click(sender As Object, e As EventArgs) Handles Button28.Click
+        StopCellOperation("192.168.1.104")
     End Sub
 
 End Class
