@@ -573,7 +573,7 @@ Public Class Form1
             {"imsi", imsi},
             {"imei", m.Groups("imei").Value},
             {"guti", "-"},
-            {"signal_Level", m.Groups("rssi").Value},
+            {"signal_Level", m.Groups("ulSig").Value},
             {"time_advance", m.Groups("ta").Value},
             {"phone_model", "N/A"},
             {"event", m.Groups("event").Value},
@@ -756,6 +756,7 @@ Public Class Form1
 
 
     Private Sub UpdateScanResultDv(row As Dictionary(Of String, Object))
+        Console.WriteLine("UpdateScanResultDv called")
         Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
         If dt Is Nothing Then Return
 
@@ -865,6 +866,7 @@ Public Class Form1
 
             dt.Rows.InsertAt(newRow, 0)
         End If
+        Console.WriteLine("UpdateScanResultDv completed")
     End Sub
 
 
