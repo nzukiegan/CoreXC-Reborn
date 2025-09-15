@@ -2266,8 +2266,8 @@ Public Class Form1
         If e.RowIndex >= 0 Then
             Dim row As DataGridViewRow = DataGridView9.Rows(e.RowIndex)
 
-            selectedBimsi = row.Cells("imsi").Value.ToString()
-            selectedBImei = row.Cells("imei").Value.ToString()
+            selectedBimsi = row.Cells("Column1").Value.ToString()
+            selectedBImei = row.Cells("Column2").Value.ToString()
         End If
     End Sub
 
