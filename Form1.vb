@@ -140,91 +140,39 @@ Public Class Form1
         gmap.MapProvider = GMapProviders.GoogleMap
         gmap.MinZoom = 1
         gmap.MaxZoom = 20
-        gmap.Zoom = 16
+        gmap.Zoom = 14
     End Sub
 
     Private Sub ShowMapDirection(lat As Double, lon As Double, destLat As Double, destLon As Double)
-        Try
-            ' Ensure we're on the UI thread
-            If gmap.InvokeRequired Then
-                gmap.Invoke(Sub() ShowMapDirection(lat, lon, destLat, destLon))
-                Return
-            End If
+        gmap.Position = New PointLatLng(lat, lon)
 
-            ' Clear previous overlays to avoid clutter
-            gmap.Overlays.Clear()
+        ' Add markers
+        Dim markers = New GMapOverlay("markers")
+        Dim startMarker As New GMarkerGoogle(New PointLatLng(lat, lon), GMarkerGoogleType.green_dot)
+        Dim endMarker As New GMarkerGoogle(New PointLatLng(destLat, destLon), GMarkerGoogleType.red_dot)
+        markers.Markers.Add(startMarker)
+        markers.Markers.Add(endMarker)
+        gmap.Overlays.Add(markers)
 
-            ' Center map roughly between start and end initially
-            gmap.Position = New PointLatLng((lat + destLat) / 2.0, (lon + destLon) / 2.0)
+        ' Request route (Google Directions API)
+        Dim route As MapRoute = GMapProviders.GoogleMap.GetRoute(
+            New PointLatLng(lat, lon),
+            New PointLatLng(destLat, destLon),
+            False, ' avoid highways?
+            False, ' walking mode?
+            16     ' zoom level
+        )
 
-            ' Add markers overlay
-            Dim markersOverlay = New GMapOverlay("markers")
-            Dim startMarker As New GMarkerGoogle(New PointLatLng(lat, lon), GMarkerGoogleType.green_dot)
-            Dim endMarker As New GMarkerGoogle(New PointLatLng(destLat, destLon), GMarkerGoogleType.red_dot)
-            markersOverlay.Markers.Add(startMarker)
-            markersOverlay.Markers.Add(endMarker)
-            gmap.Overlays.Add(markersOverlay)
-
-            ' Request route (note: provider may require API key or may return Nothing)
-            Dim route As MapRoute = Nothing
-            Try
-                route = GMapProviders.GoogleMap.GetRoute(
-                New PointLatLng(lat, lon),
-                New PointLatLng(destLat, destLon),
-                False, ' avoidHighways?
-                False, ' walking?
-                15     ' attempt route detail/zoom - this parameter is provider specific
-            )
-            Catch ex As Exception
-                ' providers sometimes throw; handle gracefully
-                Debug.WriteLine("GetRoute error: " & ex.Message)
-                route = Nothing
-            End Try
-
-            If route IsNot Nothing AndAlso route.Points IsNot Nothing AndAlso route.Points.Count > 0 Then
-                ' Create route overlay and add it
-                Dim r As New GMapRoute(route.Points, "Route")
-                r.Stroke = New Pen(Color.Blue, 3)
-                Dim routesOverlay As New GMapOverlay("routes")
-                routesOverlay.Routes.Add(r)
-                gmap.Overlays.Add(routesOverlay)
-
-                ' Compute bounding box of route points and center/zoom to fit
-                Dim minLat = route.Points.Min(Function(p) p.Lat)
-                Dim maxLat = route.Points.Max(Function(p) p.Lat)
-                Dim minLng = route.Points.Min(Function(p) p.Lng)
-                Dim maxLng = route.Points.Max(Function(p) p.Lng)
-
-                Dim centerLat = (minLat + maxLat) / 2.0
-                Dim centerLng = (minLng + maxLng) / 2.0
-                gmap.Position = New PointLatLng(centerLat, centerLng)
-
-                ' crude zoom fit: increase/decrease zoom based on span (tweak constants as needed)
-                Dim latSpan = maxLat - minLat
-                Dim lngSpan = maxLng - minLng
-                Dim span = Math.Max(latSpan, lngSpan)
-
-                ' Adjust zoom heuristically
-                If span > 20 Then
-                    gmap.Zoom = 3
-                ElseIf span > 5 Then
-                    gmap.Zoom = 6
-                ElseIf span > 1 Then
-                    gmap.Zoom = 10
-                ElseIf span > 0.2 Then
-                    gmap.Zoom = 13
-                Else
-                    gmap.Zoom = 15
-                End If
-            Else
-                MessageBox.Show("Route not found. Make sure internet is available and the provider supports routing (may require an API key).", "Route not found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            End If
-
-        Catch ex As Exception
-            MessageBox.Show("Error showing route: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
+        If route IsNot Nothing Then
+            Dim r As New GMapRoute(route.Points, "Route")
+            r.Stroke = New Pen(Color.SeaGreen, 3)
+            Dim routesOverlay As New GMapOverlay("routes")
+            routesOverlay.Routes.Add(r)
+            gmap.Overlays.Add(routesOverlay)
+        Else
+            MessageBox.Show("Route not found. Make sure internet is available or cache contains route data.", "Error")
+        End If
     End Sub
-
 
     Private Sub ChannelAnalyzer_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ChannelAnalyzer.SelectedIndexChanged
         If ChannelAnalyzer.SelectedTab Is TabPage2 Then
