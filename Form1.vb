@@ -1748,6 +1748,9 @@ Public Class Form1
     Private Sub Button35_Click(sender As Object, e As EventArgs) Handles Button35.Click
         If selectedLongitude <> 0 AndAlso selectedLatitude <> 0 Then
             Dim loc = LocationHelper.GetCurrentLocation()
+            Console.WriteLine("My location")
+            Console.WriteLine(loc.Latitude)
+            Console.WriteLine(loc.Latitude)
             ShowMapDirection(loc.Latitude, loc.Longitude, selectedLatitude, selectedLongitude)
         Else
             MessageBox.Show("Please select a row to display map.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)

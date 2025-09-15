@@ -5,29 +5,33 @@ Imports System.Text.Json
 Public Class LocationHelper
     Public Shared Function GetCurrentLocation() As (Latitude As Double, Longitude As Double)
         Try
-            Dim watcher As New GeoCoordinateWatcher(GeoPositionAccuracy.Default)
-            watcher.TryStart(False, TimeSpan.FromSeconds(3))
-
-            Dim coord = watcher.Position.Location
-            If coord IsNot Nothing AndAlso Not coord.IsUnknown Then
-                Return (coord.Latitude, coord.Longitude)
-            End If
-        Catch
-
+            Using watcher As New GeoCoordinateWatcher(GeoPositionAccuracy.Default)
+                If watcher.TryStart(False, TimeSpan.FromSeconds(5)) Then
+                    Dim coord = watcher.Position.Location
+                    If coord IsNot Nothing AndAlso Not coord.IsUnknown Then
+                        Return (coord.Latitude, coord.Longitude)
+                    End If
+                End If
+            End Using
+        Catch ex As Exception
         End Try
 
         Try
-            Dim client As New WebClient()
-            Dim response As String = client.DownloadString("http://ip-api.com/json/")
-            Dim doc = JsonDocument.Parse(response)
-
-            Dim lat = doc.RootElement.GetProperty("lat").GetDouble()
-            Dim lon = doc.RootElement.GetProperty("lon").GetDouble()
-
-            Return (lat, lon)
-        Catch
-            ' If everything fails, return 0,0
-            Return (0, 0)
+            Using client As New WebClient()
+                client.Headers(HttpRequestHeader.UserAgent) = "MyApp/1.0"
+                Dim response As String = client.DownloadString("http://ip-api.com/json/")
+                Using doc As JsonDocument = JsonDocument.Parse(response)
+                    Dim root = doc.RootElement
+                    Dim latEl As JsonElement
+                    Dim lonEl As JsonElement
+                    If root.TryGetProperty("lat", latEl) AndAlso root.TryGetProperty("lon", lonEl) Then
+                        Return (latEl.GetDouble(), lonEl.GetDouble())
+                    End If
+                End Using
+            End Using
+        Catch ex As Exception
         End Try
+
+        Return (0, 0)
     End Function
 End Class
