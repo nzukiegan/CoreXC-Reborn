@@ -20,6 +20,7 @@ Imports GMap.NET.MapProviders
 Imports GMap.NET.WindowsForms
 Imports GMap.NET.WindowsForms.Markers
 Imports GMap.NET.WindowsForms.ToolTips
+Imports Newtonsoft.Json.Linq
 
 Public Class Form1
 
@@ -567,7 +568,7 @@ Public Class Form1
         Dim lac As Integer = m.Groups("lac").Value
         Dim cid As Integer = getCellId(m.Groups("source").Value)
 
-        GetCellLocation(mcc, mnc, cid, lac, latitude, longitude)
+        GetCellLocation(mcc, mnc, 0, lac, latitude, longitude)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
@@ -914,24 +915,40 @@ Public Class Form1
     End Sub
 
 
+
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As String, ByRef lon As String)
-        Dim apiKey As String = "pk.de77bc92497c387a48400e40fb6e7c5d"
-        Dim url As String = $"https://opencellid.org/cell/get?key={apiKey}&mcc={mcc}&mnc={mnc}&lac={lac}&cellid={cid}&format=json"
+        Dim apiKey As String = "pk.3b202963e54283dd02838406ae4df7be"
+        Dim url As String = "https://us1.unwiredlabs.com/v2/process"
 
         Try
-            Dim client As New WebClient()
-            Dim response As String = client.DownloadString(url)
+            Dim payload As String = "{
+            ""token"": """ & apiKey & """,
+            ""radio"": ""lte"",
+            ""mcc"": " & mcc & ",
+            ""mnc"": " & mnc & ",
+            ""cells"": [
+                { ""lac"": " & lac & ",
+                  ""cid"": " & cid & ",
+                  ""psc"": 0 }
+            ],
+            ""address"": 1
+        }"
 
-            Dim doc As JsonDocument = JsonDocument.Parse(response)
-            If doc.RootElement.TryGetProperty("lat", Nothing) AndAlso doc.RootElement.TryGetProperty("lon", Nothing) Then
-                lat = doc.RootElement.GetProperty("lat").GetDouble().ToString()
-                lon = doc.RootElement.GetProperty("lon").GetDouble().ToString()
-            Else
-                lat = ""
-                lon = ""
-            End If
+            Using client As New WebClient()
+                client.Headers(HttpRequestHeader.ContentType) = "application/json"
+                Dim response As String = client.UploadString(url, "POST", payload)
+
+                Dim json As JObject = JObject.Parse(response)
+                If json("status") IsNot Nothing AndAlso json("status").ToString().ToLower() = "ok" Then
+                    lat = json("lat").ToString()
+                    lon = json("lon").ToString()
+                Else
+                    lat = ""
+                    lon = ""
+                End If
+            End Using
+
         Catch ex As Exception
-
             lat = ""
             lon = ""
         End Try
