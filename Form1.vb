@@ -99,6 +99,8 @@ Public Class Form1
             Chart1.ChartAreas(0).AxisY.Title = "Scan Count"
             Chart1.ChartAreas(0).AxisX.Interval = 1
 
+            Column3.DataPropertyName = "tableName"
+
             StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
 
@@ -109,6 +111,7 @@ Public Class Form1
             AddHandler ComboBox13.SelectedIndexChanged, AddressOf TechnologyChanged_CH2
             AddHandler ComboBox14.SelectedIndexChanged, AddressOf TechnologyChanged_CH3
             AddHandler ComboBox15.SelectedIndexChanged, AddressOf TechnologyChanged_CH4
+
 
             InitializeGMap()
 
