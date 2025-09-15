@@ -749,7 +749,7 @@ Public Class Form1
                 End If
             End Using
         Catch ex As Exception
-            Debug.WriteLine("InsertScanResult error: " & ex.ToString())
+            Console.WriteLine("InsertScanResult error: " & ex.ToString())
         End Try
     End Sub
 
