@@ -521,6 +521,7 @@ Public Class Form1
                     Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
                     Dim response As String = Encoding.ASCII.GetString(result.Buffer)
                     Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
+                    Console.WriteLine("Sener Ip: " & senderIp)
                     If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
                         Me.Invoke(Sub()
                                       processResponse(response)
@@ -535,7 +536,7 @@ Public Class Form1
                 Catch ex As Exception
                     If listenerRunning Then
                         Me.Invoke(Sub()
-                                      Console.WriteLine("Listener error: " & ex.Message)
+                                      Console.WriteLine("Listener Error: " & ex.Message)
                                   End Sub)
                     End If
                 End Try
