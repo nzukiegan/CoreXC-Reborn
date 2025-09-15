@@ -1757,9 +1757,13 @@ Public Class Form1
 
                 If DataGridView10.InvokeRequired Then
                     DataGridView10.Invoke(Sub()
+                                              DataGridView10.DataSource = Nothing
+                                              DataGridView10.Columns.Clear()
                                               DataGridView10.DataSource = table
                                           End Sub)
                 Else
+                    DataGridView10.DataSource = Nothing
+                    DataGridView10.Columns.Clear()
                     DataGridView10.DataSource = table
                 End If
             End Using
