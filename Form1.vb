@@ -1582,8 +1582,6 @@ Public Class Form1
             refresh()
             Return
         End If
-
-        LoadScanResults()
     End Sub
 
 
