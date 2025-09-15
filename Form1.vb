@@ -1750,7 +1750,7 @@ Public Class Form1
             Dim loc = LocationHelper.GetCurrentLocation()
             Console.WriteLine("My location")
             Console.WriteLine(loc.Latitude)
-            Console.WriteLine(loc.Latitude)
+            Console.WriteLine(loc.Longitude)
             ShowMapDirection(loc.Latitude, loc.Longitude, selectedLatitude, selectedLongitude)
         Else
             MessageBox.Show("Please select a row to display map.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
