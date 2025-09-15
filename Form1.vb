@@ -540,7 +540,6 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessLogEntry(logLine As String)
-        Console.WriteLine(logLine)
         Dim pattern As String =
         "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+" &
         "time\[(?<time>\d+)\]\s+" &
@@ -566,8 +565,9 @@ Public Class Form1
         Dim latitude As String = ""
         Dim longitude As String = ""
         Dim lac As Integer = m.Groups("lac").Value
+        Dim cid As Integer = getCellId(m.Groups("source").Value)
 
-        GetCellLocation(mcc, mnc, lac, latitude, longitude)
+        GetCellLocation(mcc, mnc, cid, lac, latitude, longitude)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
@@ -593,6 +593,39 @@ Public Class Form1
         InsertScanResult(row)
         UpdateScanResultDv(row)
     End Sub
+
+    Private Function getCellId(source As String) As Integer
+        Dim channelNumber As Integer = 0
+        Dim match As Match = Regex.Match(source, "ch(?<num>\d+)", RegexOptions.IgnoreCase)
+        If match.Success Then
+            channelNumber = Convert.ToInt32(match.Groups("num").Value)
+        Else
+            Return 0
+        End If
+
+        Dim cid As Integer = 0
+
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                Dim sql As String = "SELECT cid FROM base_stations WHERE channel_number = @channel_number"
+                Using cmd As New SqlCommand(sql, conn)
+                    cmd.Parameters.AddWithValue("@channel_number", channelNumber)
+
+                    Dim result = cmd.ExecuteScalar()
+                    If result IsNot Nothing AndAlso result IsNot DBNull.Value Then
+                        cid = Convert.ToInt32(result)
+                    End If
+                End Using
+            End Using
+        Catch ex As Exception
+            MessageBox.Show("Error getting Cell ID: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+
+        Return cid
+    End Function
+
 
     Public Sub InsertScanResult(row As Dictionary(Of String, Object))
         Try
@@ -881,9 +914,9 @@ Public Class Form1
     End Sub
 
 
-    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, ByRef lat As String, ByRef lon As String)
+    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As String, ByRef lon As String)
         Dim apiKey As String = "pk.de77bc92497c387a48400e40fb6e7c5d"
-        Dim url As String = $"https://opencellid.org/cell/get?key={apiKey}&mcc={mcc}&mnc={mnc}&lac={lac}&cellid=0&format=json"
+        Dim url As String = $"https://opencellid.org/cell/get?key={apiKey}&mcc={mcc}&mnc={mnc}&lac={lac}&cellid={cid}&format=json"
 
         Try
             Dim client As New WebClient()
