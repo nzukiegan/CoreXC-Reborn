@@ -1577,11 +1577,8 @@ Public Class Form1
     End Sub
 
     Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
-        If String.IsNullOrEmpty(selectedSchema1) Then
-            selectedSchema = SelectedSchema1
-            refresh()
-            Return
-        End If
+        selectedSchema = SelectedSchema1
+        refresh()
     End Sub
 
 
