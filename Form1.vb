@@ -2669,42 +2669,34 @@ Public Class Form1
     End Sub
 
     Private Sub OpenForm5()
-        For Each f As Form In Application.OpenForms
-            If TypeOf f Is Form5 Then
-                f.BringToFront()
-                f.Focus()
-                Return
-            End If
-        Next
-
         If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
             Using f5 As New Form5()
                 f5.ShowDialog(Me)
+                LoadBaseStationData()
+                LoadBaseStationData1()
             End Using
         Else
             Using f5 As New Form5(operatorFilter)
                 f5.ShowDialog(Me)
+                LoadBaseStationData()
+                LoadBaseStationData1()
             End Using
         End If
 
     End Sub
 
     Private Sub OpenForm6()
-        For Each f As Form In Application.OpenForms
-            If TypeOf f Is Form6 Then
-                f.BringToFront()
-                f.Focus()
-                Return
-            End If
-        Next
-
         If operatorFilter2 Is Nothing OrElse operatorFilter2.Count = 0 Then
             Using f6 As New Form6()
                 f6.ShowDialog(Me)
+                LoadBaseStationData()
+                LoadBaseStationData1()
             End Using
         Else
             Using f6 As New Form6(operatorFilter2)
                 f6.ShowDialog(Me)
+                LoadBaseStationData()
+                LoadBaseStationData1()
             End Using
         End If
 
