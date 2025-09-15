@@ -801,14 +801,6 @@ Public Class Form1
 
     Private Sub UpdateScanResultDv(row As Dictionary(Of String, Object))
         Console.WriteLine("UpdateScanResultDv called")
-        Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
-        If dt Is Nothing Then Return
-
-        Console.WriteLine("DataTable has " & dt.Rows.Count & " rows")
-
-        If Not dt.Columns.Contains("rat") Then
-            dt.Columns.Add("rat", GetType(String))
-        End If
 
         Dim sourceStr As String = ""
         If row.ContainsKey("source") AndAlso row("source") IsNot Nothing Then
@@ -822,6 +814,7 @@ Public Class Form1
         End If
 
         Dim rat As String = "UNKNOWN"
+
         If channelNumber > 0 Then
             Try
                 Using conn As New SqlClient.SqlConnection(connectionString)
@@ -860,6 +853,7 @@ Public Class Form1
                     End Using
                 End Using
             Catch ex As Exception
+                Debug.WriteLine("Error determining RAT: " & ex.Message)
                 rat = "UNKNOWN"
             End Try
         End If
@@ -869,51 +863,77 @@ Public Class Form1
             imsiVal = row("imsi").ToString()
         End If
 
-        Dim existingRow As DataRow = Nothing
-        For Each dr As DataRow In dt.Rows
-            Dim drImsi As String = If(dr.Table.Columns.Contains("imsi") AndAlso Not dr.IsNull("imsi"), dr("imsi").ToString(), "")
-            Dim drRat As String = If(dr.Table.Columns.Contains("rat") AndAlso Not dr.IsNull("rat"), dr("rat").ToString(), "")
-
-            If String.Equals(drImsi, imsiVal, StringComparison.Ordinal) AndAlso
-           String.Equals(drRat, rat, StringComparison.OrdinalIgnoreCase) Then
-                existingRow = dr
-                Exit For
-            End If
-        Next
-
-        If existingRow IsNot Nothing Then
-            Dim currentCount As Integer = 0
-            If Not IsDBNull(existingRow("count")) Then
-                Integer.TryParse(existingRow("count").ToString(), currentCount)
-            End If
-            existingRow("count") = currentCount + 1
-
-            If existingRow.Table.Columns.Contains("date_event") Then
-                existingRow("date_event") = DateTime.Now
-            End If
+        If DataGridView4.InvokeRequired Then
+            DataGridView4.Invoke(Sub() ApplyRowToGrid(row, imsiVal, rat))
         Else
-            Dim newRow As DataRow = dt.NewRow()
-            For Each kvp In row
-                If dt.Columns.Contains(kvp.Key) Then
-                    newRow(kvp.Key) = If(kvp.Value, DBNull.Value)
+            ApplyRowToGrid(row, imsiVal, rat)
+        End If
+
+        Console.WriteLine("UpdateScanResultDv completed")
+    End Sub
+
+    Private Sub ApplyRowToGrid(row As Dictionary(Of String, Object), imsiVal As String, rat As String)
+        Try
+            Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
+            If dt Is Nothing Then
+                Debug.WriteLine("ApplyRowToGrid: DataTable is Nothing, aborting update.")
+                Return
+            End If
+
+            If Not dt.Columns.Contains("rat") Then
+                dt.Columns.Add("rat", GetType(String))
+            End If
+
+            Dim existingRow As DataRow = Nothing
+            For Each dr As DataRow In dt.Rows
+                Dim drImsi As String = If(dr.Table.Columns.Contains("imsi") AndAlso Not dr.IsNull("imsi"), dr("imsi").ToString(), "")
+                Dim drRat As String = If(dr.Table.Columns.Contains("rat") AndAlso Not dr.IsNull("rat"), dr("rat").ToString(), "")
+
+                If String.Equals(drImsi, imsiVal, StringComparison.Ordinal) AndAlso
+               String.Equals(drRat, rat, StringComparison.OrdinalIgnoreCase) Then
+                    existingRow = dr
+                    Exit For
                 End If
             Next
 
-            If dt.Columns.Contains("date_event") Then
-                newRow("date_event") = If(row.ContainsKey("date_event") AndAlso row("date_event") IsNot Nothing,
-                                      row("date_event"), DateTime.Now)
+            If existingRow IsNot Nothing Then
+                Dim currentCount As Integer = 0
+                If dt.Columns.Contains("count") AndAlso Not IsDBNull(existingRow("count")) Then
+                    Integer.TryParse(existingRow("count").ToString(), currentCount)
+                End If
+                If dt.Columns.Contains("count") Then
+                    existingRow("count") = currentCount + 1
+                End If
+
+                If dt.Columns.Contains("date_event") Then
+                    existingRow("date_event") = DateTime.Now
+                End If
+            Else
+                Dim newRow As DataRow = dt.NewRow()
+                For Each kvp In row
+                    If kvp.Key IsNot Nothing AndAlso dt.Columns.Contains(kvp.Key) Then
+                        newRow(kvp.Key) = If(kvp.Value IsNot Nothing, kvp.Value, DBNull.Value)
+                    End If
+                Next
+
+                If dt.Columns.Contains("date_event") Then
+                    newRow("date_event") = If(row.ContainsKey("date_event") AndAlso row("date_event") IsNot Nothing,
+                                           row("date_event"), DateTime.Now)
+                End If
+
+                If dt.Columns.Contains("count") Then
+                    newRow("count") = 1
+                End If
+
+                newRow("rat") = rat
+
+                dt.Rows.InsertAt(newRow, 0)
             End If
-
-            If dt.Columns.Contains("count") Then
-                newRow("count") = 1
-            End If
-
-            newRow("rat") = rat
-
-            dt.Rows.InsertAt(newRow, 0)
-        End If
-        Console.WriteLine("UpdateScanResultDv completed")
+        Catch ex As Exception
+            Debug.WriteLine("ApplyRowToGrid error: " & ex.Message)
+        End Try
     End Sub
+
 
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As String, ByRef lon As String, ByRef add As String)
         Dim apiKey As String = "pk.3b202963e54283dd02838406ae4df7be"
