@@ -67,6 +67,7 @@ Public Class Form1
     Private gmap As GMapControl
     Private selectedBimsi As String
     Private selectedBImei As String
+    Private SelectedSchema1 As String = String.Empty
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -991,6 +992,10 @@ Public Class Form1
     End Sub
 
     Private Async Sub refreshBtn_Click(sender As Object, e As EventArgs)
+        refresh()
+    End Sub
+
+    Private Async Sub refresh()
         If isRefreshing Then Return
         isRefreshing = True
 
@@ -1017,7 +1022,6 @@ Public Class Form1
             isRefreshing = False
         End Try
     End Sub
-
 
     Private Sub refreshTimer_Tick(sender As Object, e As EventArgs) Handles refreshTimer.Tick
         refreshAngle += 10
@@ -1573,9 +1577,9 @@ Public Class Form1
     End Sub
 
     Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
-        ' Example: load scan results for the selected schema
-        If String.IsNullOrEmpty(selectedSchema) Then
-            MessageBox.Show("Please select database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        If String.IsNullOrEmpty(selectedSchema1) Then
+            selectedSchema = SelectedSchema1
+            refresh()
             Return
         End If
 
@@ -3670,8 +3674,7 @@ Public Class Form1
         If e.RowIndex >= 0 Then
             Dim row As DataGridViewRow = DataGridView8.Rows(e.RowIndex)
             If row.Cells("Column3").Value IsNot Nothing Then
-                selectedSchema = row.Cells("Column3").Value.ToString()
-                Console.WriteLine("Selected schema: " & selectedSchema)
+                SelectedSchema1 = row.Cells("Column3").Value.ToString()
             End If
         End If
     End Sub
