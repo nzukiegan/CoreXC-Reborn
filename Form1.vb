@@ -2524,6 +2524,39 @@ Public Class Form1
 
     End Sub
 
+    Private Sub Button76_Click(sender As Object, e As EventArgs) Handles Button76.Click
+        Try
+            Dim imsi As String = selectedBimsi
+            Dim imei As String = selectedBImei
+
+            If String.IsNullOrEmpty(imsi) OrElse String.IsNullOrEmpty(imei) Then
+                MessageBox.Show("IMSI or IMEI is empty. Cannot add to blacklist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            Dim filePath As String = IO.Path.Combine(Application.StartupPath, "blacklist.txt")
+            Dim newLine As String = $"{imsi},{imei}"
+
+            If Not IO.File.Exists(filePath) Then
+                IO.File.WriteAllText(filePath, newLine & Environment.NewLine)
+                MessageBox.Show("IMSI and IMEI added to blacklist.txt successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            Dim allLines As List(Of String) = IO.File.ReadAllLines(filePath).ToList()
+            If Not allLines.Contains(newLine) Then
+                IO.File.AppendAllText(filePath, newLine & Environment.NewLine)
+                MessageBox.Show("IMSI and IMEI added to blacklist.txt successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Else
+                MessageBox.Show("This IMSI/IMEI pair already exists in blacklist.txt.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            End If
+
+        Catch ex As Exception
+            MessageBox.Show("Error writing to blacklist.txt: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+
     Private Sub Button79_Click(sender As Object, e As EventArgs) Handles Button79.Click
         If String.IsNullOrEmpty(selectedWimsi) Then
             MessageBox.Show("Please select imsi from the list first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning)
