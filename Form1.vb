@@ -86,8 +86,6 @@ Public Class Form1
             AddInputConstraints()
             AddAdvancedConstraints()
             SetupValidationEvents()
-            LoadBlacklistData()
-            LoadWhitelistData()
             pingTimer = New System.Windows.Forms.Timer()
             pingTimer.Interval = 5000 ' Check every 5 seconds
             pingTimer.Start()
@@ -2936,7 +2934,7 @@ Public Class Form1
                 Dim sql As String = "
                 SELECT name AS SchemaName
                 FROM sys.schemas
-                WHERE name NOT IN ('dbo', 'sys', 'INFORMATION_SCHEMA')
+                WHERE name LIKE 'op_%'
                 ORDER BY name
             "
 

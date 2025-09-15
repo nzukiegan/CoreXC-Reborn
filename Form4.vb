@@ -5,17 +5,27 @@ Public Class Form4
     Private connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
-        Dim schemaName As String = TextBox1.Text.Trim()
+        Dim rawSchemaName As String = TextBox1.Text.Trim()
+        Dim prefix As String = "op_"
 
-        If String.IsNullOrEmpty(schemaName) Then
+        If String.IsNullOrEmpty(rawSchemaName) Then
             MessageBox.Show("Please enter a schema name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
             Return
+        End If
+
+        ' Ensure schema name starts with prefix
+        Dim schemaName As String
+        If rawSchemaName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            schemaName = rawSchemaName
+        Else
+            schemaName = prefix & rawSchemaName
         End If
 
         Try
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
+                ' Create schema if not exists
                 Dim schemaSql As String =
                     $"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schemaName}')
                         EXEC('CREATE SCHEMA [{schemaName}]')"
@@ -23,6 +33,7 @@ Public Class Form4
                     schemaCmd.ExecuteNonQuery()
                 End Using
 
+                ' Create scan_results table
                 Dim scanResultsSql As String = $"
                     IF NOT EXISTS (
                         SELECT * FROM sys.tables 
@@ -53,6 +64,7 @@ Public Class Form4
                     cmd.ExecuteNonQuery()
                 End Using
 
+                ' Create blacklist table
                 Dim blacklistSql As String = $"
                     IF NOT EXISTS (
                         SELECT * FROM sys.tables 
