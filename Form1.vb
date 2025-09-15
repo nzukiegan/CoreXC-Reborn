@@ -1758,22 +1758,18 @@ Public Class Form1
                 Dim table As New DataTable()
                 adapter.Fill(table)
 
-                If DataGridView10.InvokeRequired Then
-                    DataGridView10.Invoke(Sub()
-                                              DataGridView10.DataSource = Nothing
-                                              DataGridView10.Columns.Clear()
-                                              DataGridView10.DataSource = table
-                                          End Sub)
-                Else
-                    DataGridView10.DataSource = Nothing
-                    DataGridView10.Columns.Clear()
-                    DataGridView10.DataSource = table
-                End If
+                DataGridView10.AutoGenerateColumns = False
+                DataGridView10.Rows.Clear()
+
+                For Each row As DataRow In table.Rows
+                    DataGridView10.Rows.Add(row("imsi").ToString())
+                Next
             End Using
         Catch ex As Exception
             MessageBox.Show("Error loading whitelist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
+
 
 
     Public Sub LoadBaseStationData1()
