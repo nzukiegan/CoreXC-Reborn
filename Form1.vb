@@ -100,7 +100,7 @@ Public Class Form1
             Chart1.ChartAreas(0).AxisX.Interval = 1
 
 
-            StyleChannelAnalyzerComponents()
+            'StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
 
             AddHandler DataGridView3.SelectionChanged, AddressOf DataGridView_SelectionChanged
