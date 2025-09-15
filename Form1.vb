@@ -140,7 +140,7 @@ Public Class Form1
         gmap.MapProvider = GMapProviders.GoogleMap
         gmap.MinZoom = 1
         gmap.MaxZoom = 20
-        gmap.Zoom = 12
+        gmap.Zoom = 16
     End Sub
 
     Private Sub ShowMapDirection(lat As Double, lon As Double, destLat As Double, destLon As Double)
