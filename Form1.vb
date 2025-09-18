@@ -4156,6 +4156,106 @@ Public Class Form1
         End If
     End Sub
 
+    Private Sub ComboBox2_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox2.SelectedIndexChanged
+        HandleTechnologyChange(2, ComboBox2.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox3_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox3.SelectedIndexChanged
+        HandleTechnologyChange(3, ComboBox3.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox4_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox4.SelectedIndexChanged
+        HandleTechnologyChange(5, ComboBox3.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox5_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox5.SelectedIndexChanged
+        HandleTechnologyChange(6, ComboBox5.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox6_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox6.SelectedIndexChanged
+        HandleTechnologyChange(7, ComboBox6.SelectedItem.ToString())
+    End Sub
+    Private Sub ComboBox7_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox7.SelectedIndexChanged
+        HandleTechnologyChange(8, ComboBox7.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox1.SelectedIndexChanged
+        HandleTechnologyChange(9, ComboBox1.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox8_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox8.SelectedIndexChanged
+        HandleTechnologyChange(11, ComboBox8.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox9_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox9.SelectedIndexChanged
+        HandleTechnologyChange(12, ComboBox9.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox10_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox10.SelectedIndexChanged
+        HandleTechnologyChange(13, ComboBox10.SelectedItem.ToString())
+    End Sub
+
+    Private Sub ComboBox11_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox11.SelectedIndexChanged
+        HandleTechnologyChange(14, ComboBox11.SelectedItem.ToString())
+    End Sub
+
+    Private Sub HandleTechnologyChange(channelNumber As Integer, technology As String)
+        technology = CleanBandName(technology)
+        If technology = "stayhere" Then Return
+        Dim command As String = "SwitchNetMode " & technology
+        Dim ipAddress As String = GetChannelIPAddress(channelNumber)
+        SendSwitchCommand(ipAddress, command)
+    End Sub
+
+    Public Function CleanBandName(input As String) As String
+        If String.IsNullOrWhiteSpace(input) Then
+            Return String.Empty
+        End If
+
+        Dim prefix As String = "Drop to "
+        If input.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            Return input.Substring(prefix.Length).Trim()
+        End If
+
+        Return input.Trim()
+    End Function
+
+
+    Private Function GetChannelIPAddress(channelNumber As Integer) As String
+        Dim ipMap As New Dictionary(Of Integer, String) From {
+        {1, "192.168.1.90"},
+        {2, "192.168.1.91"},
+        {3, "192.168.1.92"},
+        {4, "192.168.1.93"},
+        {5, "192.168.1.94"},
+        {6, "192.168.1.95"},
+        {7, "192.168.1.96"},
+        {8, "192.168.1.97"},
+        {9, "192.168.1.98"},
+        {10, "192.168.1.99"}, ' Assuming CH10 has a different IP
+        {11, "192.168.1.101"},
+        {12, "192.168.1.102"},
+        {13, "192.168.1.103"},
+        {14, "192.168.1.104"}
+    }
+
+        If ipMap.ContainsKey(channelNumber) Then
+            Return ipMap(channelNumber)
+        Else
+            Return "192.168.1.100" ' Default IP
+        End If
+    End Function
+
+    Private Sub SendSwitchCommand(ipAddress As String, command As String)
+        Try
+            Dim data As Byte() = Encoding.ASCII.GetBytes(command)
+            udp.Send(data, data.Length, ipAddress, 9001)
+            Console.WriteLine($"Sent command '{command}' to {ipAddress}")
+        Catch ex As Exception
+            Console.WriteLine($"Error sending command to {ipAddress}: {ex.Message}")
+        End Try
+    End Sub
+
 
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
         StartCellOperation("192.168.1.90")
