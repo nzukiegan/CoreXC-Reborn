@@ -4161,7 +4161,7 @@ Public Class Form1
     End Sub
 
     Private Sub ComboBox4_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox4.SelectedIndexChanged
-        HandleTechnologyChange(5, ComboBox3.SelectedItem.ToString())
+        HandleTechnologyChange(5, ComboBox4.SelectedItem.ToString())
     End Sub
 
     Private Sub ComboBox5_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox5.SelectedIndexChanged
