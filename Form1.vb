@@ -109,10 +109,6 @@ Public Class Form1
             AddHandler DataGridView3.SelectionChanged, AddressOf DataGridView_SelectionChanged
             AddHandler DataGridView2.SelectionChanged, AddressOf DataGridView_SelectionChanged
             AddHandler DataGridView1.SelectionChanged, AddressOf DataGridView_SelectionChanged
-            AddHandler ComboBox12.SelectedIndexChanged, AddressOf TechnologyChanged_CH1
-            AddHandler ComboBox13.SelectedIndexChanged, AddressOf TechnologyChanged_CH2
-            AddHandler ComboBox14.SelectedIndexChanged, AddressOf TechnologyChanged_CH3
-            AddHandler ComboBox15.SelectedIndexChanged, AddressOf TechnologyChanged_CH4
 
 
             InitializeGMap()
