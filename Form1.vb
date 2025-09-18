@@ -4242,6 +4242,11 @@ Public Class Form1
 
     Private Sub SendSwitchCommand(ipAddress As String, command As String)
         Try
+            If udp Is Nothing Then
+                Console.WriteLine($"UDP client not initialized. Cannot send command '{command}' to {ipAddress}")
+                Return
+            End If
+
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
             udp.Send(data, data.Length, ipAddress, 9001)
             Console.WriteLine($"Sent command '{command}' to {ipAddress}")
