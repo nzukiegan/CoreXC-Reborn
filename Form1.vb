@@ -73,6 +73,7 @@ Public Class Form1
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
+            StartUdpListener()
             analyzingGsm = False
             InitializeEditModeButtons()
             InitializeProgressIndicator()
@@ -114,9 +115,6 @@ Public Class Form1
             InitializeGMap()
 
             LoadTaskingList()
-
-            StartUdpListener()
-
 
             Task.Run(Sub() UpdateButtonColors())
 
