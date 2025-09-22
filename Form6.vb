@@ -158,8 +158,6 @@ Public Class Form6
         End Try
     End Sub
 
-
-
     Private Function GsmChannelDefaultBand(channel As Integer) As String
         Select Case channel
             Case 1, 2 : Return "GSM 900"
@@ -376,23 +374,14 @@ Public Class Form6
                     End Using
                 End If
             End Using
-
-            UpdateMainFormBaseStation(channelNumber)
+            Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
+            Form1.SendSwitchCommand(ipA, "SwitchNetMode GSM")
+            NetworkConfigDeployer.ApplyNetworkConfiguration(ipA, "@root", "", "", "gsm", mcc, mnc, "", arfcn, "", "")
         Catch ex As Exception
             MessageBox.Show("Error applying to channel " & channelNumber & ": " & ex.Message)
         End Try
     End Sub
 
-    Private Sub UpdateMainFormBaseStation(channelNumber As Integer)
-        Console.WriteLine("Updating main form base station " & channelNumber)
-        Dim mainForm As Form1 = Application.OpenForms.OfType(Of Form1)().FirstOrDefault()
-
-        If mainForm IsNot Nothing Then
-            mainForm.LoadBaseStationData1()
-        Else
-            MessageBox.Show("Main form not found. Please ensure Form1 is open.")
-        End If
-    End Sub
 
     Private Function ExtractBandMHz(band As String) As Integer
         If String.IsNullOrWhiteSpace(band) Then Return 0

@@ -1,7 +1,8 @@
 ﻿Imports System.Data.SqlClient
+Imports System.Drawing
 Imports System.Text.RegularExpressions
 Imports System.Windows.Forms
-Imports System.Drawing
+Imports Org.BouncyCastle.Asn1.Cms
 
 Public Class Form5
     Private ReadOnly connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
@@ -353,6 +354,10 @@ Public Class Form5
         MessageBox.Show($"Applied to channel: {channelNumber}")
 
         UpdateApplyButtonsState()
+
+        Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
+        Form1.SendSwitchCommand(ipA, "SwitchNetMode FDD-LTE")
+        NetworkConfigDeployer.ApplyNetworkConfiguration(ipA, "@root", "", "", "lte", mcc, mnc, earfcn, "", "", band)
     End Sub
 
     ' ---------------------------

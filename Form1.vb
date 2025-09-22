@@ -1,6 +1,4 @@
-﻿Imports System.Collections.Generic
-Imports System.ComponentModel
-Imports System.ComponentModel.Design
+﻿Imports System.ComponentModel
 Imports System.Data.SqlClient
 Imports System.Drawing.Drawing2D
 Imports System.Net
@@ -9,17 +7,11 @@ Imports System.Net.Sockets
 Imports System.Text
 Imports System.Text.RegularExpressions
 Imports System.Threading
-Imports System.Windows.Forms
-Imports System.Windows.Drawing
 Imports System.Windows.Forms.DataVisualization.Charting
-Imports System.Security.Authentication.ExtendedProtection
-Imports System.Runtime.Remoting.Channels
-Imports System.Text.Json
 Imports GMap.NET
 Imports GMap.NET.MapProviders
 Imports GMap.NET.WindowsForms
 Imports GMap.NET.WindowsForms.Markers
-Imports GMap.NET.WindowsForms.ToolTips
 Imports Newtonsoft.Json.Linq
 
 Public Class Form1
@@ -47,7 +39,7 @@ Public Class Form1
     Private udpClients As New Dictionary(Of String, UdpClient)
     Private listener As UdpClient
     Private isListening As Boolean = False
-    Private udp As UdpClient
+    Shared udp As UdpClient
     Private operatorFilter As List(Of String)
     Private operatorFilter1 As List(Of String)
     Private operatorFilter2 As List(Of String)
@@ -83,6 +75,7 @@ Public Class Form1
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
             Await dbInitializer.InitializeBaseStations()
+            Await dbInitializer.getBaseStationsFromBackend(udp)
             disableAllBtns()
             LoadDataToGridViews()
             ApplyFilterToDataGridViews()
@@ -2224,19 +2217,11 @@ Public Class Form1
 
             If hasChanges Then
                 If channel = 9 Then
-                    button.Text = $"Save changes to CH9 and CH10"
                     button.ForeColor = Color.White
-                Else
-                    button.Text = $"Save changes to CH{channel}"
                 End If
                 button.BackColor = Color.LightGreen
                 button.Font = New Font("Arial", 7, FontStyle.Regular)
             Else
-                If channel = 9 Then
-                    button.Text = $"Stored to CH9 and CH10"
-                Else
-                    button.Text = $"Stored to CH{channel}"
-                End If
                 button.ForeColor = Color.Black
                 button.BackColor = Color.LightGray
                 button.Font = New Font("Arial", 8, FontStyle.Regular)
@@ -3620,10 +3605,29 @@ Public Class Form1
                 StoreOriginalValue($"CH{channel}_TextBox126", earfcn2Text)
             End If
 
+            Dim ipA As String = Form1.GetChannelIPAddress(channel)
+            SendTechCommand(ipA, technology)
+            NetworkConfigDeployer.ApplyNetworkConfiguration(ipA, "@root", "", "", "gsm", mcc, mnc, "", earfcn, "", "")
         Catch ex As Exception
             MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
         End Try
     End Sub
+
+    Public Sub SendTechCommand(ipA As String, technology As String)
+        Dim command As String = ""
+
+        Select Case technology.ToLower()
+            Case "gsm"
+                command = "SwitchNetMode GSM"
+            Case "lte"
+                command = "SwitchNetMode TDD-LTE"
+            Case Else
+                Throw New ArgumentException("Unsupported technology: " & technology)
+        End Select
+
+        Form1.SendSwitchCommand(ipA, command)
+    End Sub
+
 
     Private Function GetBaseStationIdByChannel(channelNumber As Integer) As Integer?
         Using connection As New SqlConnection(connectionString)
@@ -4215,7 +4219,7 @@ Public Class Form1
     End Function
 
 
-    Private Function GetChannelIPAddress(channelNumber As Integer) As String
+    Shared Function GetChannelIPAddress(channelNumber As Integer) As String
         Dim ipMap As New Dictionary(Of Integer, String) From {
         {1, "192.168.1.90"},
         {2, "192.168.1.91"},
@@ -4226,7 +4230,7 @@ Public Class Form1
         {7, "192.168.1.96"},
         {8, "192.168.1.97"},
         {9, "192.168.1.98"},
-        {10, "192.168.1.99"}, ' Assuming CH10 has a different IP
+        {10, "192.168.1.99"},
         {11, "192.168.1.101"},
         {12, "192.168.1.102"},
         {13, "192.168.1.103"},
@@ -4236,11 +4240,11 @@ Public Class Form1
         If ipMap.ContainsKey(channelNumber) Then
             Return ipMap(channelNumber)
         Else
-            Return "192.168.1.100" ' Default IP
+            Return "192.168.1.100"
         End If
     End Function
 
-    Private Sub SendSwitchCommand(ipAddress As String, command As String)
+    Shared Sub SendSwitchCommand(ipAddress As String, command As String)
         Try
             If udp Is Nothing Then
                 Console.WriteLine($"UDP client not initialized. Cannot send command '{command}' to {ipAddress}")

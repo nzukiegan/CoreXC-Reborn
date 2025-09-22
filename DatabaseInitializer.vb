@@ -2,6 +2,9 @@
 Imports System.IO
 Imports System.Text
 Imports System.Threading.Tasks
+Imports System.Xml
+Imports System.Net
+Imports System.Net.Sockets
 
 Public Class DatabaseInitializer
     Private ReadOnly connectionString As String = $"Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Integrated Security=true;"
@@ -72,6 +75,72 @@ Public Class DatabaseInitializer
         End Try
     End Function
 
+    Public Async Function getBaseStationsFromBackend(udp As UdpClient) As Task
+        Dim buttonIpMap As New Dictionary(Of Integer, String) From {
+        {1, "192.168.1.90"},
+        {2, "192.168.1.91"},
+        {3, "192.168.1.92"},
+        {4, "192.168.1.93"},
+        {5, "192.168.1.94"},
+        {6, "192.168.1.95"},
+        {7, "192.168.1.96"},
+        {8, "192.168.1.97"},
+        {9, "192.168.1.98"},
+        {11, "192.168.1.101"},
+        {12, "192.168.1.102"},
+        {13, "192.168.1.103"},
+        {14, "192.168.1.104"}
+    }
+
+        For Each kvp In buttonIpMap
+            Dim channelNumber As Integer = kvp.Key
+            Dim ipAddress As String = kvp.Value
+
+            Try
+                Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("GET_CELL_PARA")
+                udp.Send(cmdBytes, cmdBytes.Length, ipAddress, 9001)
+
+                Dim remoteEP As New IPEndPoint(ipAddress.Any, 0)
+                Dim responseBytes As Byte() = udp.Receive(remoteEP)
+                Dim responseXml As String = Encoding.UTF8.GetString(responseBytes)
+                Console.WriteLine(responseXml)
+
+                Dim xmlDoc As New XmlDocument()
+                xmlDoc.LoadXml(responseXml)
+
+                Dim band As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//band").InnerText.Trim())
+                Dim erfcn As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//erfcn").InnerText.Trim())
+                Dim pci As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//pci").InnerText.Trim())
+                Dim mcc As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//mcc").InnerText.Trim())
+                Dim mnc As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//mnc").InnerText.Trim())
+                Dim tac As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//tac").InnerText.Trim())
+                Dim cid As Integer = Convert.ToInt32(xmlDoc.SelectSingleNode("//cellId").InnerText.Trim())
+
+                Dim sql As String = "
+                INSERT INTO base_stations (channel_number, is_lte, earfcn, mcc, mnc, cid, lac, band, last_updated)
+                VALUES (@channel_number, 1, @earfcn, @mcc, @mnc, @cid, @tac, @band, SYSUTCDATETIME())"
+
+                Using conn As New SqlClient.SqlConnection(connectionString)
+                    Using cmd As New SqlClient.SqlCommand(sql, conn)
+                        cmd.Parameters.AddWithValue("@channel_number", channelNumber)
+                        cmd.Parameters.AddWithValue("@earfcn", erfcn)
+                        cmd.Parameters.AddWithValue("@mcc", mcc)
+                        cmd.Parameters.AddWithValue("@mnc", mnc)
+                        cmd.Parameters.AddWithValue("@cid", cid)
+                        cmd.Parameters.AddWithValue("@tac", tac)
+                        cmd.Parameters.AddWithValue("@band", band)
+                        conn.Open()
+                        cmd.ExecuteNonQuery()
+                    End Using
+                End Using
+
+                Console.WriteLine($"✅ Channel {channelNumber} ({ipAddress}) updated in DB.")
+
+            Catch ex As Exception
+                Console.WriteLine($"❌ Failed to get data for channel {channelNumber} ({ipAddress}): {ex.Message}")
+            End Try
+        Next
+    End Function
 
     Public Async Function SeedOperatorsAsync() As Task
         Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"
