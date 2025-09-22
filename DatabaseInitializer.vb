@@ -97,7 +97,7 @@ Public Class DatabaseInitializer
             Dim ipAddress As String = kvp.Value
 
             Try
-                Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("GET_CELL_PARA")
+                Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("GetCellPara")
                 udp.Send(cmdBytes, cmdBytes.Length, ipAddress, 9001)
 
                 Dim remoteEP As New IPEndPoint(ipAddress.Any, 0)
