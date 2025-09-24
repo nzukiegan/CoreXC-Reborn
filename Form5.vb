@@ -330,8 +330,8 @@ Public Class Form5
         Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
         Dim channelNumber As Integer = Convert.ToInt32(row.Cells("channel").Value)
 
-        If channelNumber < 4 Then
-            Dim isLte As Integer = 0
+        If channelNumber < 5 Then
+            Dim isGsm As Integer = 0
             Using conn As New SqlClient.SqlConnection(connectionString)
                 conn.Open()
                 Dim sql As String = "SELECT ISNULL(is_gsm,0) FROM base_stations WHERE channel_number = @channel_number"
@@ -339,12 +339,12 @@ Public Class Form5
                     cmd.Parameters.AddWithValue("@channel_number", channelNumber)
                     Dim rt = cmd.ExecuteScalar()
                     If rt IsNot Nothing Then
-                        isLte = Convert.ToInt32(rt)
+                        isGsm = Convert.ToInt32(rt)
                     End If
                 End Using
             End Using
 
-            If isLte = 1 Then
+            If isGsm = 1 Then
                 MessageBox.Show("Your channel is in GSM mode, switch RAT first.")
                 Return
             End If

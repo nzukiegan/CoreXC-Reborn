@@ -251,7 +251,7 @@ Public Class Form6
             Dim chosenObj = row.Cells("chosenCh").Value
             Dim channelNumber As Integer = If(chosenObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(chosenObj.ToString()), Convert.ToInt32(chosenObj), 0)
 
-            If channelNumber < 4 Then
+            If channelNumber < 5 Then
                 Dim isLte As Integer = 0
                 Using conn As New SqlClient.SqlConnection(connectionString)
                     conn.Open()
