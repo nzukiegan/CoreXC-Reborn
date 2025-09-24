@@ -1170,6 +1170,7 @@ Public Class Form1
 
 
     Private Sub processResponse(response As String)
+        Console.log(response)
         Try
             If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessGsmData(response)
