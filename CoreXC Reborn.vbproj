@@ -248,7 +248,6 @@
     <Compile Include="Form9.vb">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="HeartbeatSender.vb" />
     <Compile Include="LocationHelper.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
     <Compile Include="My Project\Application.Designer.vb">
