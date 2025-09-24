@@ -104,11 +104,9 @@ Public Class Form1
 
 
             InitializeGMap()
-
             LoadTaskingList()
-
             Task.Run(Sub() UpdateButtonColors())
-
+            Await RunPeriodicUpdates()
             MessageBox.Show("Database and schema ready!", "Success")
         Catch ex As Exception
             Console.WriteLine("Database setup error: " & ex.StackTrace)
@@ -1172,11 +1170,21 @@ Public Class Form1
             channelNo = Integer.Parse(match.Groups(1).Value)
         End If
 
-        Await Task.Delay(10000)
-        Await dbInitializer.GetBaseStationsFromBackend(udp, channelNo)
-        LoadBaseStationData()
-        LoadBaseStationData1()
     End Sub
+
+    Private Async Function RunPeriodicUpdates() As Task
+        While True
+            Try
+                Await Task.Delay(30000)
+                Await dbInitializer.GetBaseStationsFromBackend(udp)
+                LoadBaseStationData()
+                LoadBaseStationData1()
+
+            Catch ex As Exception
+                Console.WriteLine("Error in periodic task: " & ex.Message)
+            End Try
+        End While
+    End Function
 
 
     Private Sub ShowProgressIndicator()
