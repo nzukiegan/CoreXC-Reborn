@@ -4305,10 +4305,23 @@ Public Class Form1
 
 
     Private Sub HandleTechnologyChange(channelNumber As Integer, technology As String)
-        Console.WriteLine("Handling tech change")
+
         Dim ipAddress As String = GetChannelIPAddress(channelNumber)
-        SendSwitchCommand(ipAddress, technology)
+        Dim command As String = ""
+
+        Select Case technology.Trim().ToUpper()
+            Case "GSM"
+                command = "SwitchNetMode GSM"
+            Case "LTE"
+                command = "SwitchNetMode FDD-LTE"
+            Case Else
+                Console.WriteLine("Unknown technology: " & technology)
+                Exit Sub
+        End Select
+
+        SendSwitchCommand(ipAddress, command)
     End Sub
+
 
     Public Function CleanBandName(input As String) As String
         If String.IsNullOrWhiteSpace(input) Then
