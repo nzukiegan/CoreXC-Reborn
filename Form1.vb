@@ -570,6 +570,7 @@ Public Class Form1
             xmlDoc.LoadXml(responseXml)
             Dim band = ParseIntSafe(GetFirstText(xmlDoc, "//band", "//content//band"))
             Dim erfcn = ParseIntSafe(GetFirstText(xmlDoc, "//erfcn", "//content//erfcn", "//cell//item//arfcnList//arfcn", "//cell//arfcn"))
+            Dim bsic = ParseIntSafe(GetFirstText(xmlDoc, "//bsic", "//content//bsic"))
             Dim pci = ParseIntSafe(GetFirstText(xmlDoc, "//pci", "//content//pci"))
             Dim mcc = ParseIntSafe(GetFirstText(xmlDoc, "//mcc", "//cell//item//mcc", "//content//mcc"))
             Dim mnc = ParseIntSafe(GetFirstText(xmlDoc, "//mnc", "//cell//item//mnc", "//content//mnc"))
@@ -590,14 +591,15 @@ Public Class Form1
                            band = @band,
                            last_updated = SYSUTCDATETIME()
             WHEN NOT MATCHED THEN
-                INSERT (channel_number, is_lte, earfcn, mcc, mnc, cid, lac, band, last_updated)
-                VALUES (@channel_number, 1, @earfcn, @mcc, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
+                INSERT (channel_number, is_lte, earfcn, mcc, bsic, mnc, cid, lac, band, last_updated)
+                VALUES (@channel_number, 1, @earfcn, @mcc, @bsic, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
 
             Using conn As New SqlClient.SqlConnection(connectionString)
                 Using cmd As New SqlClient.SqlCommand(sql, conn)
                     cmd.Parameters.AddWithValue("@channel_number", channelNumber)
                     cmd.Parameters.AddWithValue("@earfcn", erfcn)
                     cmd.Parameters.AddWithValue("@mcc", mcc)
+                    cmd.Parameters.AddWithValue("@bsic", bsic)
                     cmd.Parameters.AddWithValue("@mnc", mnc)
                     cmd.Parameters.AddWithValue("@cid", cid)
                     cmd.Parameters.AddWithValue("@lac", lac)
