@@ -599,7 +599,7 @@ Public Class Form1
                     cmd.Parameters.AddWithValue("@mnc", mnc)
                     cmd.Parameters.AddWithValue("@cid", cid)
                     cmd.Parameters.AddWithValue("@lac", lac)
-                    cmd.Parameters.AddWithValue("@band", band)
+                    cmd.Parameters.AddWithValue("@band", GetBandFrequency(band))
 
                     conn.Open()
                     cmd.ExecuteNonQuery()
@@ -609,6 +609,28 @@ Public Class Form1
             Console.WriteLine("Failed to save Channel " & ex.Message)
         End Try
     End Sub
+
+    Shared Function GetBandFrequency(ByVal bandNumber As Integer) As Integer
+        Dim bandMap As Dictionary(Of Integer, Integer) = New Dictionary(Of Integer, Integer) From {
+        {1, 2100},
+        {2, 1900},
+        {3, 1800},
+        {4, 1700},
+        {5, 850},
+        {7, 2600},
+        {8, 900},
+        {9, 1800},
+        {40, 2300},
+        {41, 2500}
+    }
+
+        If bandMap.ContainsKey(bandNumber) Then
+            Return bandMap(bandNumber)
+        Else
+            Return -1
+        End If
+    End Function
+
 
     Private Sub ProcessLogEntry(logLine As String)
         Dim pattern As String =
@@ -1419,8 +1441,6 @@ Public Class Form1
         Return "Unknown"
     End Function
 
-
-    Public FunctionMapShortenedBandToLengthendedBand(Band As Integer) As Integer
 
 
     Private Sub ProcessWcdmaData(line As String)
