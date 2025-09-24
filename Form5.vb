@@ -350,17 +350,13 @@ Public Class Form5
         Dim cellId As Long = If(cellIdObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(cellIdObj.ToString()), Convert.ToInt64(cellIdObj), 0L)
 
         ApplyToChannel(channelNumber, lteId, earfcn, mcc, mnc, 0, cellId, band)
-
-        MessageBox.Show($"Applied to channel: {channelNumber}")
-
-        UpdateApplyButtonsState()
-
         Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
-        Form1.SendSwitchCommand(ipA, "SwitchNetMode FDD-LTE")
-        NetworkConfigDeployer.ApplyNetworkConfiguration(ipA, "@root", "", "", "lte", mcc, mnc, earfcn, "", "", band)
+        Form1.SendSwitchCommand(ipA, "lte")
+        'Form1.ApplyLteBaseChannelSettings(ipA, mcc, mnc, earfcn, bsic, lac, cellId)
+        MessageBox.Show($"Applied to channel: {channelNumber}")
+        UpdateApplyButtonsState()
     End Sub
 
-    ' ---------------------------
     Private Sub ApplyToChannel(channelNumber As Integer, lteId As Integer, earfcn As Integer,
                               mcc As Integer, mnc As Integer, lac As Integer, cellId As Long, band As String)
         Try

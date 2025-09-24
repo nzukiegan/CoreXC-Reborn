@@ -298,7 +298,9 @@ Public Class Form6
             arfcn = Convert.ToInt32(arfcnObj)
 
             ApplyToChannel(channelNumber, gsmId1, arfcn, mcc, mnc, lac, cellId, bsic, band)
-
+            Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
+            Form1.SendSwitchCommand(ipA, "gsm")
+            Form1.ApplyGsmBaseChannelSettings(ipA, mcc, mnc, arfcn, bsic, lac, cellId)
             MessageBox.Show($"Applied to channel: {channelNumber} (gsm_id={gsmId1})")
             UpdateApplyButtonsState()
         Catch ex As Exception

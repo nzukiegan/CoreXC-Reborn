@@ -8,6 +8,7 @@ Imports System.Text
 Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports System.Windows.Forms.DataVisualization.Charting
+Imports System.Xml
 Imports GMap.NET
 Imports GMap.NET.MapProviders
 Imports GMap.NET.WindowsForms
@@ -84,19 +85,16 @@ Public Class Form1
             AddAdvancedConstraints()
             SetupValidationEvents()
             pingTimer = New System.Windows.Forms.Timer()
-            pingTimer.Interval = 5000 ' Check every 5 seconds
+            pingTimer.Interval = 5000
             pingTimer.Start()
             Chart1.Series.Clear()
             Dim series As New Series("Series1")
             series.ChartType = SeriesChartType.Column
             series.IsValueShownAsLabel = True
             Chart1.Series.Add(series)
-
             Chart1.ChartAreas(0).AxisX.Title = "Provider"
             Chart1.ChartAreas(0).AxisY.Title = "Scan Count"
             Chart1.ChartAreas(0).AxisX.Interval = 1
-
-
             StyleChannelAnalyzerComponents()
             StyleSpecificColumns()
 
@@ -132,16 +130,12 @@ Public Class Form1
 
     Private Sub ShowMapDirection(lat As Double, lon As Double, destLat As Double, destLon As Double)
         gmap.Position = New PointLatLng(lat, lon)
-
-        ' Add markers
         Dim markers = New GMapOverlay("markers")
         Dim startMarker As New GMarkerGoogle(New PointLatLng(lat, lon), GMarkerGoogleType.green_dot)
         Dim endMarker As New GMarkerGoogle(New PointLatLng(destLat, destLon), GMarkerGoogleType.red_dot)
         markers.Markers.Add(startMarker)
         markers.Markers.Add(endMarker)
         gmap.Overlays.Add(markers)
-
-        ' Request route (Google Directions API)
         Dim route As MapRoute = GMapProviders.GoogleMap.GetRoute(
             New PointLatLng(lat, lon),
             New PointLatLng(destLat, destLon),
@@ -504,18 +498,11 @@ Public Class Form1
                     Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
                     Dim response As String = Encoding.ASCII.GetString(result.Buffer)
                     Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
-                    Console.WriteLine("Sender Ip: " & senderIp)
-                    If senderIp = "192.168.1.99" OrElse senderIp = "192.168.1.100" Then
-                        Me.Invoke(Sub()
-                                      processResponse(response)
-                                  End Sub)
-                    Else
-                        Try
-                            ProcessLogEntry(response)
-                        Catch ex As Exception
-                            Console.WriteLine(ex.Message)
-                        End Try
-                    End If
+                    Try
+                        processResponse(response)
+                    Catch ex As Exception
+                        Console.WriteLine(ex.Message)
+                    End Try
                 Catch ex As Exception
                     If listenerRunning Then
                         Me.Invoke(Sub()
@@ -525,6 +512,102 @@ Public Class Form1
                 End Try
             End While
         End Function)
+    End Sub
+
+    Private Sub HandleBaseStationResponse(response As String)
+        Try
+            Dim channelNumber As Integer = -1
+            Dim chMatch As Match = Regex.Match(response, "CH(\d+)", RegexOptions.IgnoreCase)
+            If chMatch.Success Then
+                channelNumber = Convert.ToInt32(chMatch.Groups(1).Value)
+            Else
+                Console.WriteLine("❌ Could not extract channel number from response.")
+                Exit Sub
+            End If
+
+            Dim xmlStartIndex As Integer = response.IndexOf("<?xml")
+            If xmlStartIndex = -1 Then
+                Console.WriteLine("No XML found in response from ")
+                Exit Sub
+            End If
+
+            Dim responseXml As String = response.Substring(xmlStartIndex).Trim()
+
+            Dim xmlDoc As New XmlDocument()
+            xmlDoc.LoadXml(responseXml)
+
+            SaveBaseStationToDb(channelNumber, responseXml)
+
+        Catch ex As Exception
+            Console.WriteLine("Error handling response from" & ex.Message)
+        End Try
+    End Sub
+
+    Private Function GetFirstText(xmlDoc As XmlDocument, ParamArray xpaths() As String) As String
+        For Each xp In xpaths
+            Dim node = xmlDoc.SelectSingleNode(xp)
+            If node IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(node.InnerText) Then
+                Return node.InnerText.Trim()
+            End If
+        Next
+        Return Nothing
+    End Function
+
+    Private Function ParseIntSafe(value As String) As Integer
+        If String.IsNullOrWhiteSpace(value) Then Return 0
+        Dim v As Integer
+        If Integer.TryParse(value, v) Then Return v
+        Dim digits = New String(value.Where(Function(c) Char.IsDigit(c) OrElse c = "-"c).ToArray())
+        If Integer.TryParse(digits, v) Then Return v
+        Return 0
+    End Function
+
+    Private Sub SaveBaseStationToDb(channelNumber As Integer, responseXml As String)
+        Try
+            Dim xmlDoc As New XmlDocument()
+            xmlDoc.LoadXml(responseXml)
+            Dim band = ParseIntSafe(GetFirstText(xmlDoc, "//band", "//content//band"))
+            Dim erfcn = ParseIntSafe(GetFirstText(xmlDoc, "//erfcn", "//content//erfcn", "//cell//item//arfcnList//arfcn", "//cell//arfcn"))
+            Dim pci = ParseIntSafe(GetFirstText(xmlDoc, "//pci", "//content//pci"))
+            Dim mcc = ParseIntSafe(GetFirstText(xmlDoc, "//mcc", "//cell//item//mcc", "//content//mcc"))
+            Dim mnc = ParseIntSafe(GetFirstText(xmlDoc, "//mnc", "//cell//item//mnc", "//content//mnc"))
+            Dim lac = ParseIntSafe(GetFirstText(xmlDoc, "//tac", "//content//tac", "//cell//item//tac", "//cell//item//lai", "//lai"))
+            Dim cid = ParseIntSafe(GetFirstText(xmlDoc, "//cellId", "//content//cellId", "//cell//item//sib3CellId", "//cell//item//cellId", "//sib3CellId"))
+
+            Dim sql As String = "
+            MERGE INTO base_stations AS target
+            USING (SELECT @channel_number AS channel_number) AS source
+            ON target.channel_number = source.channel_number
+            WHEN MATCHED THEN
+                UPDATE SET is_lte = 1,
+                           earfcn = @earfcn,
+                           mcc = @mcc,
+                           mnc = @mnc,
+                           cid = @cid,
+                           lac = @lac,
+                           band = @band,
+                           last_updated = SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN
+                INSERT (channel_number, is_lte, earfcn, mcc, mnc, cid, lac, band, last_updated)
+                VALUES (@channel_number, 1, @earfcn, @mcc, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
+
+            Using conn As New SqlClient.SqlConnection(connectionString)
+                Using cmd As New SqlClient.SqlCommand(sql, conn)
+                    cmd.Parameters.AddWithValue("@channel_number", channelNumber)
+                    cmd.Parameters.AddWithValue("@earfcn", erfcn)
+                    cmd.Parameters.AddWithValue("@mcc", mcc)
+                    cmd.Parameters.AddWithValue("@mnc", mnc)
+                    cmd.Parameters.AddWithValue("@cid", cid)
+                    cmd.Parameters.AddWithValue("@lac", lac)
+                    cmd.Parameters.AddWithValue("@band", band)
+
+                    conn.Open()
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+        Catch ex As Exception
+            Console.WriteLine("Failed to save Channel " & ex.Message)
+        End Try
     End Sub
 
     Private Sub ProcessLogEntry(logLine As String)
@@ -993,11 +1076,6 @@ Public Class Form1
 
     Private Sub processResponse(response As String)
         Try
-            If response.IndexOf("StartSniffer", StringComparison.OrdinalIgnoreCase) >= 0 Then
-                Console.WriteLine("StartSniffer → " & response)
-                Return
-            End If
-
             If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessGsmData(response)
                 Return
@@ -1008,11 +1086,20 @@ Public Class Form1
                 Return
             End If
 
-            If response.IndexOf("WCDMA", StringComparison.OrdinalIgnoreCase) >= 0 Then
+            If response.IndexOf("WcdmaSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessWcdmaData(response)
                 Return
             End If
 
+            If response.IndexOf("GetCellParaRsp", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                HandleBaseStationResponse(response)
+                Return
+            End If
+
+            If response.IndexOf("StartCell", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                ProcessLogEntry(response)
+                Return
+            End If
 
         Catch ex As Exception
             Console.WriteLine("Error while processing response: " & ex.Message)
@@ -1331,6 +1418,9 @@ Public Class Form1
 
         Return "Unknown"
     End Function
+
+
+    Public FunctionMapShortenedBandToLengthendedBand(Band As Integer) As Integer
 
 
     Private Sub ProcessWcdmaData(line As String)
@@ -3613,7 +3703,7 @@ Public Class Form1
         End Try
     End Sub
 
-    Public Sub SendTechCommand(ipA As String, technology As String)
+    Shared Function SendTechCommand(ipA As String, technology As String)
         Dim command As String = ""
 
         Select Case technology.ToLower()
@@ -3626,8 +3716,27 @@ Public Class Form1
         End Select
 
         Form1.SendSwitchCommand(ipA, command)
-    End Sub
+    End Function
 
+    Shared Function ApplyGsmBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, fcn As Integer, psc As Integer, lac As Integer, cellId As Integer)
+        Try
+            Dim command As String = $"SetRfPara {mcc} {mnc} {fcn} {psc} {lac} {cellId}"
+            Dim data As Byte() = Encoding.ASCII.GetBytes(command)
+            udp.Send(data, data.Length, ipAddress, 9001)
+        Catch ex As Exception
+            Console.WriteLine("Failed to send SetRfPara command " & ex.Message & ipAddress)
+        End Try
+    End Function
+
+    Shared Function ApplyLteBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, earfcn As Integer, psc As Integer, lac As Integer, cellId As Integer)
+        Try
+            Dim command As String = $"SetRfPara {mcc} {mnc} {earfcn} {psc} {lac} {cellId}"
+            Dim data As Byte() = Encoding.ASCII.GetBytes(command)
+            udp.Send(data, data.Length, ipAddress, 9001)
+        Catch ex As Exception
+            Console.WriteLine("Failed to send SetRfPara command " & ex.Message & ipAddress)
+        End Try
+    End Function
 
     Private Function GetBaseStationIdByChannel(channelNumber As Integer) As Integer?
         Using connection As New SqlConnection(connectionString)
