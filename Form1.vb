@@ -1123,7 +1123,6 @@ Public Class Form1
 
 
     Private Sub processResponse(response As String)
-        Console.WriteLine(response)
         Try
             If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessGsmData(response)
@@ -2381,18 +2380,6 @@ Public Class Form1
             button.Enabled = isValid AndAlso hasChanges
 
             Console.WriteLine(isValid AndAlso hasChanges)
-
-            If hasChanges Then
-                If channel = 9 Then
-                    button.ForeColor = Color.White
-                End If
-                button.BackColor = Color.LightGreen
-                button.Font = New Font("Arial", 7, FontStyle.Regular)
-            Else
-                button.ForeColor = Color.Black
-                button.BackColor = Color.LightGray
-                button.Font = New Font("Arial", 8, FontStyle.Regular)
-            End If
         End If
     End Sub
 
@@ -2897,88 +2884,6 @@ Public Class Form1
         Return True
     End Function
 
-
-    ' Event handlers for all Stored to CHx buttons
-    Private Sub Button37_Click(sender As Object, e As EventArgs) Handles Button37.Click
-        If AreFieldsFilled(ComboBox12.Text, TextBox1.Text, TextBox2.Text, TextBox3.Text, TextBox97.Text) Then
-            SaveBaseStation(1, ComboBox12.Text, TextBox1.Text, TextBox2.Text, TextBox3.Text, TextBox97.Text)
-        End If
-    End Sub
-
-    Private Sub Button38_Click(sender As Object, e As EventArgs) Handles Button38.Click
-        If AreFieldsFilled(ComboBox13.Text, TextBox101.Text, TextBox100.Text, TextBox99.Text, TextBox98.Text) Then
-            SaveBaseStation(2, ComboBox13.Text, TextBox101.Text, TextBox100.Text, TextBox99.Text, TextBox98.Text)
-        End If
-    End Sub
-
-    Private Sub Button39_Click(sender As Object, e As EventArgs) Handles Button39.Click
-        If AreFieldsFilled(ComboBox14.Text, TextBox105.Text, TextBox104.Text, TextBox103.Text, TextBox102.Text) Then
-            SaveBaseStation(3, ComboBox14.Text, TextBox105.Text, TextBox104.Text, TextBox103.Text, TextBox102.Text)
-        End If
-    End Sub
-
-    Private Sub Button40_Click(sender As Object, e As EventArgs) Handles Button40.Click
-        If AreFieldsFilled(ComboBox15.Text, TextBox109.Text, TextBox108.Text, TextBox107.Text, TextBox106.Text) Then
-            SaveBaseStation(4, ComboBox15.Text, TextBox109.Text, TextBox108.Text, TextBox107.Text, TextBox106.Text)
-        End If
-    End Sub
-
-    Private Sub Button41_Click(sender As Object, e As EventArgs) Handles Button41.Click
-        If AreFieldsFilled(ComboBox16.Text, TextBox113.Text, TextBox112.Text, TextBox111.Text) Then
-            SaveBaseStation(5, ComboBox16.Text, TextBox113.Text, TextBox112.Text, TextBox111.Text)
-        End If
-    End Sub
-
-    Private Sub Button42_Click(sender As Object, e As EventArgs) Handles Button42.Click
-        If AreFieldsFilled(ComboBox17.Text, TextBox117.Text, TextBox116.Text, TextBox115.Text) Then
-            SaveBaseStation(6, ComboBox17.Text, TextBox117.Text, TextBox116.Text, TextBox115.Text)
-        End If
-    End Sub
-
-    Private Sub Button43_Click(sender As Object, e As EventArgs) Handles Button43.Click
-        If AreFieldsFilled(ComboBox18.Text, TextBox121.Text, TextBox120.Text, TextBox119.Text) Then
-            SaveBaseStation(7, ComboBox18.Text, TextBox121.Text, TextBox120.Text, TextBox119.Text)
-        End If
-    End Sub
-
-    Private Sub Button44_Click(sender As Object, e As EventArgs) Handles Button44.Click
-        If AreFieldsFilled(ComboBox19.Text, TextBox125.Text, TextBox124.Text, TextBox123.Text) Then
-            SaveBaseStation(8, ComboBox19.Text, TextBox125.Text, TextBox124.Text, TextBox123.Text)
-        End If
-    End Sub
-
-    Private Sub Button45_Click(sender As Object, e As EventArgs) Handles Button45.Click
-        If AreFieldsFilled(ComboBox20.Text, TextBox129.Text, TextBox128.Text, TextBox127.Text, TextBox126.Text) Then
-            SaveBaseStation(9, ComboBox20.Text, TextBox129.Text, TextBox128.Text, TextBox127.Text, Nothing, TextBox126.Text)
-        End If
-    End Sub
-
-    Private Sub Button46_Click(sender As Object, e As EventArgs) Handles Button46.Click
-        If AreFieldsFilled(ComboBox21.Text, TextBox133.Text, TextBox132.Text, TextBox131.Text) Then
-            SaveBaseStation(11, ComboBox21.Text, TextBox133.Text, TextBox132.Text, TextBox131.Text)
-        End If
-    End Sub
-
-    Private Sub Button47_Click(sender As Object, e As EventArgs) Handles Button47.Click
-        If AreFieldsFilled(ComboBox22.Text, TextBox137.Text, TextBox136.Text, TextBox135.Text) Then
-            SaveBaseStation(12, ComboBox22.Text, TextBox137.Text, TextBox136.Text, TextBox135.Text)
-        End If
-    End Sub
-
-    Private Sub Button48_Click(sender As Object, e As EventArgs) Handles Button48.Click
-        If AreFieldsFilled(ComboBox23.Text, TextBox141.Text, TextBox140.Text, TextBox139.Text) Then
-            SaveBaseStation(13, ComboBox23.Text, TextBox141.Text, TextBox140.Text, TextBox139.Text)
-        End If
-    End Sub
-
-    Private Sub Button49_Click(sender As Object, e As EventArgs) Handles Button49.Click
-        If AreFieldsFilled(ComboBox24.Text, TextBox145.Text, TextBox144.Text, TextBox143.Text) Then
-            SaveBaseStation(14, ComboBox24.Text, TextBox145.Text, TextBox144.Text, TextBox143.Text)
-        End If
-    End Sub
-
-
-    ' Add this method to handle the TextChanged event for all textboxes
     Private Sub TextBox_TextChanged(sender As Object, e As EventArgs)
         Dim txt As TextBox = CType(sender, TextBox)
         Dim channel As Integer = GetChannelFromTextBoxName(txt.Name)
