@@ -4309,18 +4309,20 @@ Public Class Form1
         Dim ipAddress As String = GetChannelIPAddress(channelNumber)
         Dim command As String = ""
 
-        Select Case technology.Trim().ToUpper()
-            Case "GSM"
-                command = "SwitchNetMode GSM"
-            Case "LTE"
-                command = "SwitchNetMode FDD-LTE"
-            Case Else
-                Console.WriteLine("Unknown technology: " & technology)
-                Exit Sub
-        End Select
+        Dim tech As String = technology.Trim().ToUpper()
+
+        If tech.Contains("GSM") Then
+            command = "SwitchNetMode GSM"
+        ElseIf tech.Contains("LTE") Then
+            command = "SwitchNetMode FDD-LTE"
+        Else
+            Console.WriteLine("Unknown technology: " & technology)
+            Exit Sub
+        End If
 
         SendSwitchCommand(ipAddress, command)
     End Sub
+
 
 
     Public Function CleanBandName(input As String) As String
