@@ -138,7 +138,7 @@ Public Class Form1
         heartbeatRunning = True
 
         Task.Run(Async Function()
-                     Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("heartbeat")
+                     Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("HeartBeat")
 
                      While heartbeatRunning
                          Try
