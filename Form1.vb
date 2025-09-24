@@ -671,6 +671,8 @@ Public Class Form1
         "lac\[(?<lac>\d+)\]\s+" &
         "dlrscp\[(?<rscp>\d+)\]\s*$"
 
+        Console.WriteLine(logLine)
+
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
             Throw New Exception("Log line format not recognized: " & logLine)
