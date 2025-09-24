@@ -16,7 +16,7 @@ Imports GMap.NET.WindowsForms.Markers
 Imports Newtonsoft.Json.Linq
 
 Public Class Form1
-
+    Private cts As Threading.CancellationTokenSource
     Private connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
     Private buttonStates As New Dictionary(Of Integer, Boolean)()
     Private WithEvents pingTimer As System.Windows.Forms.Timer
@@ -64,9 +64,12 @@ Public Class Form1
     Private selectedBImei As String
     Private SelectedSchema1 As String = String.Empty
     Private dbInitializer As DatabaseInitializer
+    Private heartbeatRunning As Boolean = False
+
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
+            StartHeartbeat()
             analyzingGsm = False
             InitializeEditModeButtons()
             InitializeProgressIndicator()
@@ -76,7 +79,7 @@ Public Class Form1
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
             Await dbInitializer.InitializeBaseStations()
-            Await dbInitializer.getBaseStationsFromBackend(udp)
+            Await dbInitializer.GetBaseStationsFromBackend(udp)
             disableAllBtns()
             LoadDataToGridViews()
             ApplyFilterToDataGridViews()
@@ -113,6 +116,49 @@ Public Class Form1
             MessageBox.Show("Database setup failed: ")
         End Try
     End Sub
+
+    Private ipAddresses As New List(Of String) From {
+        "192.168.1.90",
+        "192.168.1.91",
+        "192.168.1.92",
+        "192.168.1.93",
+        "192.168.1.94",
+        "192.168.1.95",
+        "192.168.1.96",
+        "192.168.1.97",
+        "192.168.1.98",
+        "192.168.1.101",
+        "192.168.1.102",
+        "192.168.1.103",
+        "192.168.1.104"
+    }
+
+    Public Sub StartHeartbeat()
+        If heartbeatRunning Then Exit Sub
+        heartbeatRunning = True
+
+        Task.Run(Async Function()
+                     Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("heartbeat")
+
+                     While heartbeatRunning
+                         Try
+                             For Each add In ipAddresses
+                                 Dim remoteEndPoint As New IPEndPoint(IPAddress.Parse(add), 9001)
+                                 Await udp.SendAsync(cmdBytes, cmdBytes.Length, remoteEndPoint)
+                             Next
+                         Catch ex As Exception
+                             Console.WriteLine("Heartbeat error: " & ex.Message)
+                         End Try
+
+                         Await Task.Delay(10000)
+                     End While
+                 End Function)
+    End Sub
+
+    Public Sub StopHeartbeat()
+        heartbeatRunning = False
+    End Sub
+
 
     Private Sub InitializeGMap()
         gmap = New GMapControl()
@@ -1155,6 +1201,10 @@ Public Class Form1
                 Return
             End If
 
+            If response.IndexOf("Heartbeat", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                Console.WriteLine(response)
+                Return
+            End If
 
         Catch ex As Exception
             Console.WriteLine("Error while processing response: " & ex.Message)
