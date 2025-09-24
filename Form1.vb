@@ -4288,19 +4288,19 @@ Public Class Form1
 
     Private Sub ComboBox12_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox12.SelectedIndexChanged
         Console.WriteLine("Combo box selected ")
-        HandleTechnologyChange(1, ComboBox2.SelectedItem.ToString())
+        HandleTechnologyChange(1, ComboBox12.SelectedItem.ToString())
     End Sub
 
     Private Sub ComboBox13_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox13.SelectedIndexChanged
-        HandleTechnologyChange(2, ComboBox3.SelectedItem.ToString())
+        HandleTechnologyChange(2, ComboBox13.SelectedItem.ToString())
     End Sub
 
     Private Sub ComboBox14_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox14.SelectedIndexChanged
-        HandleTechnologyChange(3, ComboBox4.SelectedItem.ToString())
+        HandleTechnologyChange(3, ComboBox14.SelectedItem.ToString())
     End Sub
 
     Private Sub ComboBox15_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox15.SelectedIndexChanged
-        HandleTechnologyChange(4, ComboBox5.SelectedItem.ToString())
+        HandleTechnologyChange(4, ComboBox15.SelectedItem.ToString())
     End Sub
 
 
