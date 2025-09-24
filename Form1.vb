@@ -69,7 +69,7 @@ Public Class Form1
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
-            'StartHeartbeat()
+            StartHeartbeat()
             analyzingGsm = False
             InitializeEditModeButtons()
             InitializeProgressIndicator()
@@ -138,7 +138,7 @@ Public Class Form1
         heartbeatRunning = True
 
         Task.Run(Async Function()
-                     Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("HeartBeat")
+                     Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("HeatBeat")
 
                      While heartbeatRunning
                          Try
