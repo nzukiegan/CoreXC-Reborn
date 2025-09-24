@@ -3717,7 +3717,6 @@ Public Class Form1
 
             Dim ipA As String = Form1.GetChannelIPAddress(channel)
             SendTechCommand(ipA, technology)
-            NetworkConfigDeployer.ApplyNetworkConfiguration(ipA, "@root", "", "", "gsm", mcc, mnc, "", earfcn, "", "")
         Catch ex As Exception
             MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
         End Try
