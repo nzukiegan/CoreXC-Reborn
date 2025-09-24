@@ -570,7 +570,7 @@ Public Class Form1
 
             Dim band = ParseIntSafe(GetFirstText(xmlDoc, "//band", "//content//band"))
             Dim erfcn = ParseIntSafe(GetFirstText(xmlDoc, "//erfcn", "//content//erfcn", "//cell//item//earfcn"))
-            Dim arfcn = ParseIntSafe(GetFirstText(xmlDoc, "//arfcn", "//content//arfcn", "//cell//item//arfcnList//arfcn", "//cell//arfcn"))
+            Dim arfcn = ParseIntSafe(GetFirstText(xmlDoc, "//cell/item/arfcnList/arfcn", "//cell/arfcn", "//content/arfcn", "//arfcn"))
             Dim bsic = ParseIntSafe(GetFirstText(xmlDoc, "//bsic", "//cell//item//bsic"))
             Dim pci = ParseIntSafe(GetFirstText(xmlDoc, "//pci", "//content//pci"))
             Dim mcc = ParseIntSafe(GetFirstText(xmlDoc, "//mcc", "//cell//item//mcc", "//content//mcc"))
