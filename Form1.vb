@@ -515,6 +515,7 @@ Public Class Form1
     End Sub
 
     Private Sub HandleBaseStationResponse(response As String)
+        Console.WriteLine("Base station response")
         Try
             Dim channelNumber As Integer = -1
             Dim chMatch As Match = Regex.Match(response, "CH(\d+)", RegexOptions.IgnoreCase)
@@ -536,6 +537,7 @@ Public Class Form1
             Dim xmlDoc As New XmlDocument()
             xmlDoc.LoadXml(responseXml)
 
+            Console.WriteLine("Saving to base station " & channelNumber)
             SaveBaseStationToDb(channelNumber, responseXml)
 
         Catch ex As Exception
@@ -1097,6 +1099,7 @@ Public Class Form1
 
 
     Private Sub processResponse(response As String)
+        Console.WriteLine(response)
         Try
             If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessGsmData(response)
@@ -4330,7 +4333,7 @@ Public Class Form1
         If technology = "stayhere" Then Return
         Dim command As String = "SwitchNetMode " & technology
         Dim ipAddress As String = GetChannelIPAddress(channelNumber)
-        SendSwitchCommand(ipAddress, command)
+        'SendSwitchCommand(ipAddress, command)
     End Sub
 
     Public Function CleanBandName(input As String) As String
