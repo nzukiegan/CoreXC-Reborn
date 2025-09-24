@@ -330,9 +330,25 @@ Public Class Form5
         Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
         Dim channelNumber As Integer = Convert.ToInt32(row.Cells("channel").Value)
 
-        'check if channel number is from 1 to 4, if true, check if is_gsm is 1, if is 0, show
-        'message box with text "your channel is in gsm mode, switch rat first'
-        'then return, continue if is_gsm is 0
+        If channelNumber < 1 OrElse channelNumber > 4 Then
+            Dim isLte As Integer = 0
+            Using conn As New SqlClient.SqlConnection(connectionString)
+                conn.Open()
+                Dim sql As String = "SELECT ISNULL(is_gsm,0) FROM base_stations WHERE channel_number = @channel_number"
+                Using cmd As New SqlClient.SqlCommand(sql, conn)
+                    cmd.Parameters.AddWithValue("@channel_number", channelNumber)
+                    Dim rt = cmd.ExecuteScalar()
+                    If rt IsNot Nothing Then
+                        isLte = Convert.ToInt32(rt)
+                    End If
+                End Using
+            End Using
+
+            If isLte = 1 Then
+                MessageBox.Show("Your channel is in GSM mode, switch RAT first.")
+                Return
+            End If
+        End If
 
         Dim earfcnObj = row.Cells("earfcn").Value
         Dim bandObj = row.Cells("band").Value

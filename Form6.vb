@@ -253,9 +253,25 @@ Public Class Form6
             Dim chosenObj = row.Cells("chosenCh").Value
             Dim channelNumber As Integer = If(chosenObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(chosenObj.ToString()), Convert.ToInt32(chosenObj), 0)
 
-            'check if channel number is from 1 to 4, if true, check if is_lte is 1, if is 0, show
-            'message box with text "your channel is in lte mode, switch rat first'
-            'then return, continue if is_lte is 0
+            If channelNumber < 1 OrElse channelNumber > 4 Then
+                Dim isLte As Integer = 0
+                Using conn As New SqlClient.SqlConnection(connectionString)
+                    conn.Open()
+                    Dim sql As String = "SELECT ISNULL(is_lte,0) FROM base_stations WHERE channel_number = @channel_number"
+                    Using cmd As New SqlClient.SqlCommand(sql, conn)
+                        cmd.Parameters.AddWithValue("@channel_number", channelNumber)
+                        Dim result = cmd.ExecuteScalar()
+                        If result IsNot Nothing Then
+                            isLte = Convert.ToInt32(result)
+                        End If
+                    End Using
+                End Using
+
+                If isLte = 1 Then
+                    MessageBox.Show("Your channel is in LTE mode, switch RAT first.")
+                    Return
+                End If
+            End If
 
             Dim gsmId1 As Integer = Convert.ToInt32(row.Cells("gsmId").Value)
 
