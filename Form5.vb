@@ -330,7 +330,7 @@ Public Class Form5
         Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
         Dim channelNumber As Integer = Convert.ToInt32(row.Cells("channel").Value)
 
-        If channelNumber < 1 OrElse channelNumber > 4 Then
+        If channelNumber < 4 Then
             Dim isLte As Integer = 0
             Using conn As New SqlClient.SqlConnection(connectionString)
                 conn.Open()

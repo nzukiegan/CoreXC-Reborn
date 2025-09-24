@@ -218,8 +218,6 @@ Public Class Form6
         Next
     End Sub
 
-
-
     Private Sub DataGridView1_CurrentCellDirtyStateChanged(sender As Object, e As EventArgs)
         If DataGridView1.IsCurrentCellDirty Then
             DataGridView1.CommitEdit(DataGridViewDataErrorContexts.Commit)
@@ -253,7 +251,7 @@ Public Class Form6
             Dim chosenObj = row.Cells("chosenCh").Value
             Dim channelNumber As Integer = If(chosenObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(chosenObj.ToString()), Convert.ToInt32(chosenObj), 0)
 
-            If channelNumber < 1 OrElse channelNumber > 4 Then
+            If channelNumber < 4 Then
                 Dim isLte As Integer = 0
                 Using conn As New SqlClient.SqlConnection(connectionString)
                     conn.Open()
