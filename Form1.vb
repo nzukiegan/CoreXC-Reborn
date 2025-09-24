@@ -534,7 +534,6 @@ Public Class Form1
             Dim xmlDoc As New XmlDocument()
             xmlDoc.LoadXml(responseXml)
 
-            Console.WriteLine("Saving to base station " & channelNumber)
             SaveBaseStationToDb(channelNumber, responseXml)
 
         Catch ex As Exception
@@ -2378,6 +2377,7 @@ Public Class Form1
             Dim hasChanges As Boolean = buttonStates(channel)
 
             button.Enabled = isValid AndAlso hasChanges
+            button.BackColor = Color.LightGray
 
             Console.WriteLine(isValid AndAlso hasChanges)
         End If
