@@ -150,7 +150,7 @@ Public Class Form1
                              Console.WriteLine("Heartbeat error: " & ex.Message)
                          End Try
 
-                         Await Task.Delay(10000)
+                         Await Task.Delay(3000)
                      End While
                  End Function)
     End Sub
