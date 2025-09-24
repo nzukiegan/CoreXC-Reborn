@@ -301,13 +301,12 @@ Public Class Form6
             Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
             Form1.SendSwitchCommand(ipA, "gsm")
             Form1.ApplyGsmBaseChannelSettings(ipA, mcc, mnc, arfcn, bsic, lac, cellId)
-            MessageBox.Show($"Applied to channel: {channelNumber} (gsm_id={gsmId1})")
+            MessageBox.Show($"Applied to channel: {channelNumber})")
             UpdateApplyButtonsState()
         Catch ex As Exception
             Console.WriteLine("Error applying to base station: " & ex.Message)
         End Try
     End Sub
-
 
     Private Sub ApplyToChannel(channelNumber As Integer, gsmId As Integer, arfcn As Integer,
                               mcc As Integer, mnc As Integer, lac As Integer, cellId As Long, bsic As Integer, band As String)
@@ -376,9 +375,6 @@ Public Class Form6
                     End Using
                 End If
             End Using
-            Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
-            Form1.SendSwitchCommand(ipA, "SwitchNetMode GSM")
-            NetworkConfigDeployer.ApplyNetworkConfiguration(ipA, "@root", "", "", "gsm", mcc, mnc, "", arfcn, "", "")
         Catch ex As Exception
             MessageBox.Show("Error applying to channel " & channelNumber & ": " & ex.Message)
         End Try
