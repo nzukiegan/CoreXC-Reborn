@@ -1155,6 +1155,7 @@ Public Class Form1
                 Return
             End If
 
+
         Catch ex As Exception
             Console.WriteLine("Error while processing response: " & ex.Message)
         End Try
@@ -3785,6 +3786,7 @@ Public Class Form1
     End Function
 
     Shared Function ApplyLteBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, earfcn As Integer, psc As Integer, lac As Integer, cellId As Integer)
+        Console.WriteLine("Applying channel settings")
         Try
             Dim command As String = $"SetRfPara {mcc} {mnc} {earfcn} {psc} {lac} {cellId}"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)

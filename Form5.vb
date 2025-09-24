@@ -330,6 +330,10 @@ Public Class Form5
         Dim row As DataGridViewRow = DataGridView1.Rows(rowIndex)
         Dim channelNumber As Integer = Convert.ToInt32(row.Cells("channel").Value)
 
+        'check if channel number is from 1 to 4, if true, check if is_lte is 1, if is 0, show
+        'message box with text "your channel is in gsm mode, switch rat first'
+        'then return, continue if is_lte is 1
+
         Dim earfcnObj = row.Cells("earfcn").Value
         Dim bandObj = row.Cells("band").Value
         Dim mccObj = row.Cells("mcc").Value
@@ -351,7 +355,6 @@ Public Class Form5
 
         ApplyToChannel(channelNumber, lteId, earfcn, mcc, mnc, 0, cellId, band)
         Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
-        Form1.SendSwitchCommand(ipA, "lte")
         Dim result = GetLacAndPci(lteId)
         Form1.ApplyLteBaseChannelSettings(ipA, mcc, mnc, earfcn, result.Item2, result.Item1, cellId)
         MessageBox.Show($"Applied to channel: {channelNumber}")
