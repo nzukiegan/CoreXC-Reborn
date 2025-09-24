@@ -69,7 +69,7 @@ Public Class Form1
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
-            StartHeartbeat()
+            'StartHeartbeat()
             analyzingGsm = False
             InitializeEditModeButtons()
             InitializeProgressIndicator()
@@ -1170,7 +1170,6 @@ Public Class Form1
 
 
     Private Sub processResponse(response As String)
-        Console.WriteLine(response)
         Try
             If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessGsmData(response)
