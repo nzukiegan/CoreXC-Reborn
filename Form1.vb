@@ -590,6 +590,9 @@ Public Class Form1
                 isWcdma = 1
             End If
 
+            ' 👇 Pick correct frequency depending on tech
+            Dim finalFreq As Integer = If(isGsm = 1, arfcn, erfcn)
+
             Dim sql As String = "
         MERGE INTO base_stations AS target
         USING (SELECT @channel_number AS channel_number) AS source
@@ -598,7 +601,7 @@ Public Class Form1
             UPDATE SET is_lte = @is_lte,
                        is_gsm = @is_gsm,
                        is_wcdma = @is_wcdma,
-                       earfcn = @earfcn,
+                       earfcn = @finalFreq,
                        mcc = @mcc,
                        bsic = @bsic, 
                        mnc = @mnc,
@@ -608,12 +611,12 @@ Public Class Form1
                        last_updated = SYSUTCDATETIME()
         WHEN NOT MATCHED THEN
             INSERT (channel_number, is_lte, is_gsm, is_wcdma, earfcn, mcc, bsic, mnc, cid, lac, band, last_updated)
-            VALUES (@channel_number, @is_lte, @is_gsm, @is_wcdma, @earfcn, @mcc, @bsic, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
+            VALUES (@channel_number, @is_lte, @is_gsm, @is_wcdma, @finalFreq, @mcc, @bsic, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
 
             Using conn As New SqlClient.SqlConnection(connectionString)
                 Using cmd As New SqlClient.SqlCommand(sql, conn)
                     cmd.Parameters.AddWithValue("@channel_number", channelNumber)
-                    cmd.Parameters.AddWithValue("@earfcn", erfcn)
+                    cmd.Parameters.AddWithValue("@finalFreq", finalFreq)
                     cmd.Parameters.AddWithValue("@mcc", mcc)
                     cmd.Parameters.AddWithValue("@bsic", bsic)
                     cmd.Parameters.AddWithValue("@mnc", mnc)
