@@ -4287,6 +4287,7 @@ Public Class Form1
     End Sub
 
     Private Sub ComboBox12_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox12.SelectedIndexChanged
+        Console.WriteLine("Combo box selected ")
         HandleTechnologyChange(1, ComboBox2.SelectedItem.ToString())
     End Sub
 
@@ -4304,6 +4305,7 @@ Public Class Form1
 
 
     Private Sub HandleTechnologyChange(channelNumber As Integer, technology As String)
+        Console.WriteLine("Handling tech change")
         Dim ipAddress As String = GetChannelIPAddress(channelNumber)
         SendSwitchCommand(ipAddress, technology)
     End Sub
