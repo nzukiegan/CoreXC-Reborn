@@ -515,7 +515,6 @@ Public Class Form1
     End Sub
 
     Private Sub HandleBaseStationResponse(response As String)
-        Console.WriteLine("Base station response")
         Try
             Dim channelNumber As Integer = -1
             Dim chMatch As Match = Regex.Match(response, "CH(\d+)", RegexOptions.IgnoreCase)

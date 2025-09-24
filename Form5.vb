@@ -352,10 +352,35 @@ Public Class Form5
         ApplyToChannel(channelNumber, lteId, earfcn, mcc, mnc, 0, cellId, band)
         Dim ipA As String = Form1.GetChannelIPAddress(channelNumber)
         Form1.SendSwitchCommand(ipA, "lte")
-        'Form1.ApplyLteBaseChannelSettings(ipA, mcc, mnc, earfcn, bsic, lac, cellId)
+        Dim result = GetLacAndPci(lteId)
+        Form1.ApplyLteBaseChannelSettings(ipA, mcc, mnc, earfcn, result.Item2, result.Item1, cellId)
         MessageBox.Show($"Applied to channel: {channelNumber}")
         UpdateApplyButtonsState()
     End Sub
+
+    Public Function GetLacAndPci(ByVal lteId As Integer) As Tuple(Of Integer, Integer)
+        Dim lac As Integer = -1
+        Dim pci As Integer = -1
+
+        Dim sql As String = "SELECT lac, pci FROM lte_cells WHERE lte_id = @lte_id"
+
+        Using conn As New SqlClient.SqlConnection(connectionString)
+            Using cmd As New SqlClient.SqlCommand(sql, conn)
+                cmd.Parameters.AddWithValue("@lte_id", lteId)
+
+                conn.Open()
+                Using reader As SqlClient.SqlDataReader = cmd.ExecuteReader()
+                    If reader.Read() Then
+                        lac = Convert.ToInt32(reader("lac"))
+                        pci = Convert.ToInt32(reader("pci"))
+                    End If
+                End Using
+            End Using
+        End Using
+
+        Return Tuple.Create(lac, pci)
+    End Function
+
 
     Private Sub ApplyToChannel(channelNumber As Integer, lteId As Integer, earfcn As Integer,
                               mcc As Integer, mnc As Integer, lac As Integer, cellId As Long, band As String)
@@ -443,14 +468,12 @@ Public Class Form5
     Private Function ExtractBandMHz(band As String) As Integer
         If String.IsNullOrWhiteSpace(band) Then Return 0
 
-        ' look for explicit "XXX MHz"
         Dim m As Match = Regex.Match(band, "(\d{3,4})\s*MHz", RegexOptions.IgnoreCase)
         Dim value As Integer
         If m.Success AndAlso Integer.TryParse(m.Groups(1).Value, value) Then
             Return value
         End If
 
-        ' fallback: map Band N to typical MHz (based on your mapping)
         m = Regex.Match(band, "Band\s*(\d+)", RegexOptions.IgnoreCase)
         If m.Success AndAlso Integer.TryParse(m.Groups(1).Value, value) Then
             Select Case value
