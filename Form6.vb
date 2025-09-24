@@ -253,6 +253,10 @@ Public Class Form6
             Dim chosenObj = row.Cells("chosenCh").Value
             Dim channelNumber As Integer = If(chosenObj IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(chosenObj.ToString()), Convert.ToInt32(chosenObj), 0)
 
+            'check if channel number is from 1 to 4, if true, check if is_lte is 1, if is 0, show
+            'message box with text "your channel is in lte mode, switch rat first'
+            'then return, continue if is_lte is 0
+
             Dim gsmId1 As Integer = Convert.ToInt32(row.Cells("gsmId").Value)
 
             If gsmId1 <= 0 Then
