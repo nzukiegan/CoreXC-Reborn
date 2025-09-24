@@ -75,7 +75,7 @@ Public Class DatabaseInitializer
         End Try
     End Function
 
-    Public Async Function GetBaseStationsFromBackend(udp As UdpClient) As Task
+    Public Async Function GetBaseStationsFromBackend(udp As UdpClient, Optional channelNumber As Integer? = Nothing) As Task
         Dim buttonIpMap As New Dictionary(Of Integer, String) From {
         {1, "192.168.1.90"},
         {2, "192.168.1.91"},
@@ -92,18 +92,30 @@ Public Class DatabaseInitializer
         {14, "192.168.1.104"}
     }
 
-        For Each kvp In buttonIpMap
-            Dim channelNumber As Integer = kvp.Key
-            Dim ipAddress As String = kvp.Value
+        Dim targets As IEnumerable(Of KeyValuePair(Of Integer, String))
 
+        If channelNumber.HasValue Then
+            If buttonIpMap.ContainsKey(channelNumber.Value) Then
+                targets = {New KeyValuePair(Of Integer, String)(channelNumber.Value, buttonIpMap(channelNumber.Value))}
+            Else
+                Console.WriteLine($"Channel {channelNumber.Value} not found in map.")
+                Return
+            End If
+        Else
+            targets = buttonIpMap
+        End If
+
+        For Each kvp In targets
             Try
                 Dim cmdBytes As Byte() = Encoding.ASCII.GetBytes("GetCellPara")
-                udp.Send(cmdBytes, cmdBytes.Length, ipAddress, 9001)
+                Await udp.SendAsync(cmdBytes, cmdBytes.Length, kvp.Value, 9001)
+                Console.WriteLine($"Sent GetCellPara to channel {kvp.Key} ({kvp.Value})")
             Catch ex As Exception
-                Console.WriteLine($"Failed to get data for channel {channelNumber} ({ipAddress}): {ex.Message}")
+                Console.WriteLine($"Failed to get data for channel {kvp.Key} ({kvp.Value}): {ex.Message}")
             End Try
         Next
     End Function
+
 
     Public Async Function SeedOperatorsAsync() As Task
         Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"

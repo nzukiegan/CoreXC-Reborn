@@ -63,7 +63,7 @@ Public Class Form1
     Private selectedWimsi As String
     Private selectedBImei As String
     Private SelectedSchema1 As String = String.Empty
-
+    Private dbInitializer As DatabaseInitializer
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
@@ -71,7 +71,7 @@ Public Class Form1
             InitializeEditModeButtons()
             InitializeProgressIndicator()
             AddRefreshButton()
-            Dim dbInitializer As New DatabaseInitializer("(localdb)\\MSSQLLocalDB", "CoreXCDb1")
+            dbInitializer = New DatabaseInitializer("(localdb)\\MSSQLLocalDB", "CoreXCDb1")
             Await dbInitializer.EnsureDatabaseExistsAsync()
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
@@ -1123,6 +1123,11 @@ Public Class Form1
                 Return
             End If
 
+            If response.IndexOf("SwitchNetMode", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                HandleSwitchResponse(response)
+                Return
+            End If
+
             If response.IndexOf("StartCell", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessLogEntry(response)
                 Return
@@ -1134,6 +1139,19 @@ Public Class Form1
     End Sub
 
 
+    Private Async Sub HandleSwitchResponse(response As String)
+        Console.WriteLine("SwtichResponse " & response)
+        Dim channelNo As Integer = -1
+
+        Dim match = System.Text.RegularExpressions.Regex.Match(response, "CH(\d+)")
+        If match.Success Then
+            channelNo = Integer.Parse(match.Groups(1).Value)
+        End If
+
+        Await dbInitializer.GetBaseStationsFromBackend(udp, channelNo)
+        LoadBaseStationData()
+        LoadBaseStationData1()
+    End Sub
 
 
     Private Sub ShowProgressIndicator()
@@ -3606,13 +3624,11 @@ Public Class Form1
     End Sub
 
     Private Sub NumericKeyPressHandler(sender As Object, e As KeyPressEventArgs)
-        ' Only allow digits and control characters (backspace, delete, etc.)
         If Not Char.IsDigit(e.KeyChar) AndAlso Not Char.IsControl(e.KeyChar) Then
             e.Handled = True
         End If
     End Sub
 
-    ' Helper methods for conversion
     Private Function ConvertToInt(value As String) As Object
         If String.IsNullOrEmpty(value) Then Return DBNull.Value
         If Integer.TryParse(value, Nothing) Then Return Integer.Parse(value)
@@ -3720,27 +3736,10 @@ Public Class Form1
                 StoreOriginalValue($"CH{channel}_TextBox126", earfcn2Text)
             End If
 
-            Dim ipA As String = Form1.GetChannelIPAddress(channel)
-            SendTechCommand(ipA, technology)
         Catch ex As Exception
             MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
         End Try
     End Sub
-
-    Shared Function SendTechCommand(ipA As String, technology As String)
-        Dim command As String = ""
-
-        Select Case technology.ToLower()
-            Case "gsm"
-                command = "SwitchNetMode GSM"
-            Case "lte"
-                command = "SwitchNetMode TDD-LTE"
-            Case Else
-                Throw New ArgumentException("Unsupported technology: " & technology)
-        End Select
-
-        Form1.SendSwitchCommand(ipA, command)
-    End Function
 
     Shared Function ApplyGsmBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, fcn As Integer, psc As Integer, lac As Integer, cellId As Integer)
         Try
@@ -4287,55 +4286,26 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub ComboBox2_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox2.SelectedIndexChanged
-        HandleTechnologyChange(2, ComboBox2.SelectedItem.ToString())
+    Private Sub ComboBox12_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox12.SelectedIndexChanged
+        HandleTechnologyChange(1, ComboBox2.SelectedItem.ToString())
     End Sub
 
-    Private Sub ComboBox3_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox3.SelectedIndexChanged
-        HandleTechnologyChange(3, ComboBox3.SelectedItem.ToString())
+    Private Sub ComboBox13_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox13.SelectedIndexChanged
+        HandleTechnologyChange(2, ComboBox3.SelectedItem.ToString())
     End Sub
 
-    Private Sub ComboBox4_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox4.SelectedIndexChanged
-        HandleTechnologyChange(5, ComboBox4.SelectedItem.ToString())
+    Private Sub ComboBox14_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox14.SelectedIndexChanged
+        HandleTechnologyChange(3, ComboBox4.SelectedItem.ToString())
     End Sub
 
-    Private Sub ComboBox5_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox5.SelectedIndexChanged
-        HandleTechnologyChange(6, ComboBox5.SelectedItem.ToString())
+    Private Sub ComboBox15_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox15.SelectedIndexChanged
+        HandleTechnologyChange(4, ComboBox5.SelectedItem.ToString())
     End Sub
 
-    Private Sub ComboBox6_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox6.SelectedIndexChanged
-        HandleTechnologyChange(7, ComboBox6.SelectedItem.ToString())
-    End Sub
-    Private Sub ComboBox7_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox7.SelectedIndexChanged
-        HandleTechnologyChange(8, ComboBox7.SelectedItem.ToString())
-    End Sub
-
-    Private Sub ComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox1.SelectedIndexChanged
-        HandleTechnologyChange(9, ComboBox1.SelectedItem.ToString())
-    End Sub
-
-    Private Sub ComboBox8_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox8.SelectedIndexChanged
-        HandleTechnologyChange(11, ComboBox8.SelectedItem.ToString())
-    End Sub
-
-    Private Sub ComboBox9_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox9.SelectedIndexChanged
-        HandleTechnologyChange(12, ComboBox9.SelectedItem.ToString())
-    End Sub
-
-    Private Sub ComboBox10_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox10.SelectedIndexChanged
-        HandleTechnologyChange(13, ComboBox10.SelectedItem.ToString())
-    End Sub
-
-    Private Sub ComboBox11_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox11.SelectedIndexChanged
-        HandleTechnologyChange(14, ComboBox11.SelectedItem.ToString())
-    End Sub
 
     Private Sub HandleTechnologyChange(channelNumber As Integer, technology As String)
-        technology = CleanBandName(technology)
-        If technology = "stayhere" Then Return
-        Dim command As String = "SwitchNetMode " & technology
         Dim ipAddress As String = GetChannelIPAddress(channelNumber)
-        'SendSwitchCommand(ipAddress, command)
+        SendSwitchCommand(ipAddress, technology)
     End Sub
 
     Public Function CleanBandName(input As String) As String
