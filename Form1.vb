@@ -1169,6 +1169,7 @@ Public Class Form1
             channelNo = Integer.Parse(match.Groups(1).Value)
         End If
 
+        Await Task.Delay(2000)
         Await dbInitializer.GetBaseStationsFromBackend(udp, channelNo)
         LoadBaseStationData()
         LoadBaseStationData1()
