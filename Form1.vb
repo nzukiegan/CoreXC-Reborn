@@ -702,9 +702,7 @@ Public Class Form1
         End If
     End Function
 
-
     Private Sub ProcessLogEntry(logLine As String)
-        Console.WriteLine(logLine)
         Dim pattern As String =
         "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+" &
         "time\[(?<time>\d+)\]\s+" &
