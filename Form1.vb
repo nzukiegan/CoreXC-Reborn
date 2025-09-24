@@ -584,6 +584,7 @@ Public Class Form1
                 UPDATE SET is_lte = 1,
                            earfcn = @earfcn,
                            mcc = @mcc,
+                           bsic = @bsic, 
                            mnc = @mnc,
                            cid = @cid,
                            lac = @lac,
