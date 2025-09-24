@@ -567,8 +567,10 @@ Public Class Form1
         Try
             Dim xmlDoc As New XmlDocument()
             xmlDoc.LoadXml(responseXml)
+
             Dim band = ParseIntSafe(GetFirstText(xmlDoc, "//band", "//content//band"))
-            Dim erfcn = ParseIntSafe(GetFirstText(xmlDoc, "//erfcn", "//content//erfcn", "//cell//item//arfcnList//arfcn", "//cell//arfcn"))
+            Dim erfcn = ParseIntSafe(GetFirstText(xmlDoc, "//erfcn", "//content//erfcn", "//cell//item//earfcn"))
+            Dim arfcn = ParseIntSafe(GetFirstText(xmlDoc, "//arfcn", "//content//arfcn", "//cell//item//arfcnList//arfcn", "//cell//arfcn"))
             Dim bsic = ParseIntSafe(GetFirstText(xmlDoc, "//bsic", "//cell//item//bsic"))
             Dim pci = ParseIntSafe(GetFirstText(xmlDoc, "//pci", "//content//pci"))
             Dim mcc = ParseIntSafe(GetFirstText(xmlDoc, "//mcc", "//cell//item//mcc", "//content//mcc"))
@@ -576,23 +578,37 @@ Public Class Form1
             Dim lac = ParseIntSafe(GetFirstText(xmlDoc, "//tac", "//content//tac", "//cell//item//tac", "//cell//item//lai", "//lai"))
             Dim cid = ParseIntSafe(GetFirstText(xmlDoc, "//cellId", "//content//cellId", "//cell//item//sib3CellId", "//cell//item//cellId", "//sib3CellId"))
 
+            Dim isLte As Integer = 0
+            Dim isGsm As Integer = 0
+            Dim isWcdma As Integer = 0
+
+            If erfcn > 0 Then
+                isLte = 1
+            ElseIf arfcn > 0 Then
+                isGsm = 1
+            ElseIf Not String.IsNullOrEmpty(GetFirstText(xmlDoc, "//psc", "//uarfcn")) Then
+                isWcdma = 1
+            End If
+
             Dim sql As String = "
-            MERGE INTO base_stations AS target
-            USING (SELECT @channel_number AS channel_number) AS source
-            ON target.channel_number = source.channel_number
-            WHEN MATCHED THEN
-                UPDATE SET is_lte = 1,
-                           earfcn = @earfcn,
-                           mcc = @mcc,
-                           bsic = @bsic, 
-                           mnc = @mnc,
-                           cid = @cid,
-                           lac = @lac,
-                           band = @band,
-                           last_updated = SYSUTCDATETIME()
-            WHEN NOT MATCHED THEN
-                INSERT (channel_number, is_lte, earfcn, mcc, bsic, mnc, cid, lac, band, last_updated)
-                VALUES (@channel_number, 1, @earfcn, @mcc, @bsic, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
+        MERGE INTO base_stations AS target
+        USING (SELECT @channel_number AS channel_number) AS source
+        ON target.channel_number = source.channel_number
+        WHEN MATCHED THEN
+            UPDATE SET is_lte = @is_lte,
+                       is_gsm = @is_gsm,
+                       is_wcdma = @is_wcdma,
+                       earfcn = @earfcn,
+                       mcc = @mcc,
+                       bsic = @bsic, 
+                       mnc = @mnc,
+                       cid = @cid,
+                       lac = @lac,
+                       band = @band,
+                       last_updated = SYSUTCDATETIME()
+        WHEN NOT MATCHED THEN
+            INSERT (channel_number, is_lte, is_gsm, is_wcdma, earfcn, mcc, bsic, mnc, cid, lac, band, last_updated)
+            VALUES (@channel_number, @is_lte, @is_gsm, @is_wcdma, @earfcn, @mcc, @bsic, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
 
             Using conn As New SqlClient.SqlConnection(connectionString)
                 Using cmd As New SqlClient.SqlCommand(sql, conn)
@@ -604,15 +620,20 @@ Public Class Form1
                     cmd.Parameters.AddWithValue("@cid", cid)
                     cmd.Parameters.AddWithValue("@lac", lac)
                     cmd.Parameters.AddWithValue("@band", GetBandFrequency(band))
+                    cmd.Parameters.AddWithValue("@is_lte", isLte)
+                    cmd.Parameters.AddWithValue("@is_gsm", isGsm)
+                    cmd.Parameters.AddWithValue("@is_wcdma", isWcdma)
 
                     conn.Open()
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
+
         Catch ex As Exception
-            Console.WriteLine("Failed to save Channel " & ex.Message)
+            Console.WriteLine("Failed to save Channel " & channelNumber & ": " & ex.Message)
         End Try
     End Sub
+
 
     Shared Function GetBandFrequency(ByVal bandNumber As Integer) As Integer
         Dim bandMap As Dictionary(Of Integer, Integer) = New Dictionary(Of Integer, Integer) From {
