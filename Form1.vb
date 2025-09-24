@@ -521,7 +521,7 @@ Public Class Form1
             If chMatch.Success Then
                 channelNumber = Convert.ToInt32(chMatch.Groups(1).Value)
             Else
-                Console.WriteLine("❌ Could not extract channel number from response.")
+                Console.WriteLine("Could not extract channel number from response.")
                 Exit Sub
             End If
 
@@ -1172,7 +1172,7 @@ Public Class Form1
             channelNo = Integer.Parse(match.Groups(1).Value)
         End If
 
-        Await Task.Delay(2000)
+        Await Task.Delay(10000)
         Await dbInitializer.GetBaseStationsFromBackend(udp, channelNo)
         LoadBaseStationData()
         LoadBaseStationData1()
