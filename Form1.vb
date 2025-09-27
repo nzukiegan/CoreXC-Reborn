@@ -3749,8 +3749,9 @@ Public Class Form1
 
     Private Sub SaveBaseStation(channel As Integer, technology As String, mccText As String, mncText As String, earfcnText As String, Optional bsicText As String = Nothing, Optional earfcn2Text As String = Nothing)
         Console.WriteLine(
-        $"Saving CH{channel}: tech={technology}, mcc={mccText}, mnc={mncText}, earfcn={earfcnText}, bsic={bsicText}, earfcn2={earfcn2Text}"
+        $"Saving CH{channel}: tech={technology}, mcc={If(String.IsNullOrEmpty(mccText), "NULL", mccText)}, mnc={If(String.IsNullOrEmpty(mncText), "NULL", mncText)}, earfcn={If(String.IsNullOrEmpty(earfcnText), "NULL", earfcnText)}, bsic={If(String.IsNullOrEmpty(bsicText), "NULL", bsicText)}, earfcn2={If(String.IsNullOrEmpty(earfcn2Text), "NULL", earfcn2Text)}"
     )
+
         Try
             Dim mcc = ParseInteger(mccText)
             Dim mnc = ParseInteger(mncText)
@@ -3772,10 +3773,11 @@ Public Class Form1
 
             Dim ipAdd = GetChannelIPAddress(channel)
             Dim result = GetBaseStationInfo(channel)
-            If isGsm Then
+
+            If isGsm AndAlso result.HasValue Then
                 Form1.ApplyGsmBaseChannelSettings(ipAdd, mcc, mnc, earfcn, result.Value.Bsic, result.Value.Lac, result.Value.Cid)
-            ElseIf isLte Then
-                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, "", result.Value.Lac, result.Value.Cid) 'get pci, tac, cell_id
+            ElseIf isLte AndAlso result.HasValue Then
+                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, "", result.Value.Lac, result.Value.Cid) 'TODO: Replace "" with PCI if available
             End If
 
             StoreOriginalValue($"CH{channel}_ComboBox", technology)
@@ -3783,19 +3785,16 @@ Public Class Form1
             StoreOriginalValue($"CH{channel}_TextBox2", mncText)
             StoreOriginalValue($"CH{channel}_TextBox3", earfcnText)
 
-            If bsicText IsNot Nothing Then
-                If channel = 1 Then
-                    StoreOriginalValue($"CH{channel}_TextBox97", bsicText)
-                ElseIf channel = 2 Then
-                    StoreOriginalValue($"CH{channel}_TextBox98", bsicText)
-                ElseIf channel = 3 Then
-                    StoreOriginalValue($"CH{channel}_TextBox102", bsicText)
-                ElseIf channel = 4 Then
-                    StoreOriginalValue($"CH{channel}_TextBox106", bsicText)
-                End If
+            If Not String.IsNullOrEmpty(bsicText) Then
+                Select Case channel
+                    Case 1 : StoreOriginalValue($"CH{channel}_TextBox97", bsicText)
+                    Case 2 : StoreOriginalValue($"CH{channel}_TextBox98", bsicText)
+                    Case 3 : StoreOriginalValue($"CH{channel}_TextBox102", bsicText)
+                    Case 4 : StoreOriginalValue($"CH{channel}_TextBox106", bsicText)
+                End Select
             End If
 
-            If earfcn2Text IsNot Nothing AndAlso channel = 9 Then
+            If Not String.IsNullOrEmpty(earfcn2Text) AndAlso channel = 9 Then
                 StoreOriginalValue($"CH{channel}_TextBox126", earfcn2Text)
             End If
 
@@ -3803,6 +3802,8 @@ Public Class Form1
             MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
         End Try
     End Sub
+
+
 
     Shared Function ApplyGsmBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, fcn As Integer, bsic As Integer, lac As Integer, cellId As Integer)
         Try
