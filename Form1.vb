@@ -2917,15 +2917,21 @@ Public Class Form1
         Form9.Show()
     End Sub
 
-    ' Helper method to parse textbox values
-    Private Function ParseInteger(text As String) As Integer?
-        If String.IsNullOrEmpty(text) Then Return Nothing
-        Dim result As Integer
-        If Integer.TryParse(text, result) Then Return result
+
+    Private Function ParseInteger(input As String) As Integer?
+        If String.IsNullOrWhiteSpace(input) Then
+            Return Nothing
+        End If
+
+        Dim value As Integer
+        If Integer.TryParse(input, value) Then
+            Return value
+        End If
+
         Return Nothing
     End Function
 
-    ' Helper function to check if all fields are filled
+
     Private Function AreFieldsFilled(ParamArray fields() As String) As Boolean
         For Each field As String In fields
             If String.IsNullOrWhiteSpace(field) Then
