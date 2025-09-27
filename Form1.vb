@@ -146,16 +146,16 @@ Public Class Form1
 
         For i As Integer = 1 To 20
             Dim logLine As String = String.Format(template,
-            i,                                  ' no
-            rnd.Next(1, 5),                     ' source
-            rnd.Next(1000, 9999),               ' time
-            "31015" & rnd.Next(1000000, 9999999), ' IMSI (MCC=310, MNC=15)
-            rnd.Next(10, 90),                   ' ulSig
-            rnd.Next(1, 30),                    ' ulTa
-            rnd.Next(0, 2),                     ' bl_indi (0 or 1)
-            rnd.Next(100000, 999999).ToString("X"), ' tmsi in hex
-            rnd.Next(1000, 2000),               ' lac
-            rnd.Next(-90, -50)                  ' dlrscp
+            i,
+            rnd.Next(1, 5),
+            rnd.Next(1000, 9999),
+            "31015" & rnd.Next(1000000, 9999999),
+            rnd.Next(10, 90),
+            rnd.Next(1, 30),
+            rnd.Next(0, 2),
+            rnd.Next(100000, 999999).ToString("X"),
+            rnd.Next(1000, 2000),
+            rnd.Next(-90, -50)
         )
 
             Dim bytes As Byte() = Encoding.ASCII.GetBytes(logLine)
