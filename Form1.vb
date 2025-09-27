@@ -611,6 +611,7 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessUdpMessage(response As String, senderIp As String)
+        Console.WriteLine(response)
         Try
             processResponse(response)
         Catch ex As Exception
