@@ -3703,8 +3703,20 @@ Public Class Form1
                                              If e.KeyCode = Keys.Enter Then
                                                  Try
                                                      e.SuppressKeyPress = True
-                                                     Console.WriteLine("Enter clicked on item: " & channel & technologyCombo.Text & mccTextBox.Text & mncTextBox.Text & earfcnTextBox.Text & bsicTextBox.Text)
-                                                     SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text, earfcn2TextBox.Text)
+                                                     If bsicTextBox IsNot Nothing AndAlso earfcn2TextBox IsNot Nothing Then
+                                                         Console.WriteLine($"CH{channel} → tech={technologyCombo.Text}, mcc={mccTextBox.Text}, mnc={mncTextBox.Text}, earfcn={earfcnTextBox.Text}, bsic={bsicTextBox.Text}, earfcn2={earfcn2TextBox.Text}")
+                                                         SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text, earfcn2TextBox.Text)
+
+                                                     ElseIf bsicTextBox IsNot Nothing Then
+                                                         Console.WriteLine($"CH{channel} → tech={technologyCombo.Text}, mcc={mccTextBox.Text}, mnc={mncTextBox.Text}, earfcn={earfcnTextBox.Text}, bsic={bsicTextBox.Text}")
+                                                         SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text)
+
+                                                     Else
+                                                         Console.WriteLine($"CH{channel} → tech={technologyCombo.Text}, mcc={mccTextBox.Text}, mnc={mncTextBox.Text}, earfcn={earfcnTextBox.Text}")
+                                                         SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text)
+                                                     End If
+
+
                                                  Catch ex As Exception
                                                      MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
                                                  End Try
