@@ -3759,7 +3759,6 @@ Public Class Form1
             Dim bsic = ParseInteger(bsicText)
             Dim earfcn2 = ParseInteger(earfcn2Text)
 
-            Console.WriteLine("conversions success")
 
             Dim isGsm = technology.Contains("GSM")
             Dim isLte = technology.Contains("LTE")
@@ -3779,7 +3778,7 @@ Public Class Form1
             If isGsm AndAlso result.HasValue Then
                 Form1.ApplyGsmBaseChannelSettings(ipAdd, mcc, mnc, earfcn, result.Value.Bsic, result.Value.Lac, result.Value.Cid)
             ElseIf isLte AndAlso result.HasValue Then
-                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, "", result.Value.Lac, result.Value.Cid) 'TODO: Replace "" with PCI if available
+                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, result.Value.Pci, result.Value.Lac, result.Value.Cid) 'TODO: Replace "" with PCI if available
             End If
 
             StoreOriginalValue($"CH{channel}_ComboBox", technology)
@@ -3845,11 +3844,11 @@ Public Class Form1
         Return Nothing
     End Function
 
-    Public Function GetBaseStationInfo(channelNumber As Integer) As (Bsic As Integer, Lac As Integer, Cid As Integer)?
+    Public Function GetBaseStationInfo(channelNumber As Integer) As (Bsic As Integer, Lac As Integer, Cid As Integer, Pci As Integer)?
         Using connection As New SqlConnection(connectionString)
             connection.Open()
 
-            Dim query As String = "SELECT bsic, lac, cid FROM base_stations WHERE channel_number = @channelNumber"
+            Dim query As String = "SELECT bsic, lac, cid, pci FROM base_stations WHERE channel_number = @channelNumber"
 
             Using cmd As New SqlCommand(query, connection)
                 cmd.Parameters.AddWithValue("@channelNumber", channelNumber)
@@ -3859,8 +3858,9 @@ Public Class Form1
                         Dim bsic As Integer = If(IsDBNull(reader("bsic")), -1, Convert.ToInt32(reader("bsic")))
                         Dim lac As Integer = If(IsDBNull(reader("lac")), -1, Convert.ToInt32(reader("lac")))
                         Dim cid As Integer = If(IsDBNull(reader("cid")), -1, Convert.ToInt32(reader("cid")))
+                        Dim pci As Integer = If(IsDBNull(reader("pci")), -1, Convert.ToInt32(reader("pci")))
 
-                        Return (bsic, lac, cid)
+                        Return (bsic, lac, cid, pci)
                     End If
                 End Using
             End Using

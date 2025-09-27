@@ -316,7 +316,6 @@ Public Class Form5
         If DataGridView1.Columns(e.ColumnIndex).Name = "apply" Then
             Dim btnCell = CType(DataGridView1.Rows(e.RowIndex).Cells("apply"), DataGridViewButtonCell)
             If btnCell Is Nothing OrElse btnCell.ReadOnly Then
-                ' disabled -> ignore
                 Return
             End If
 
