@@ -3759,6 +3759,8 @@ Public Class Form1
             Dim bsic = ParseInteger(bsicText)
             Dim earfcn2 = ParseInteger(earfcn2Text)
 
+            Console.WriteLine("conversions success")
+
             Dim isGsm = technology.Contains("GSM")
             Dim isLte = technology.Contains("LTE")
             Dim isWcdma = technology.Contains("WCDMA")
