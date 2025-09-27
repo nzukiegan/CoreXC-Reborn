@@ -594,7 +594,7 @@ Public Class Form1
         Next
     End Sub
 
-    Private Sub WorkerLoop()
+    Private Async Sub WorkerLoop()
         While listenerRunning
             Dim packet As Tuple(Of Byte(), String) = Nothing
             If packetQueue.TryDequeue(packet) Then
@@ -605,7 +605,7 @@ Public Class Form1
                     Console.WriteLine("Worker Error: " & ex.Message)
                 End Try
             Else
-                Threading.Thread.Sleep(5)
+                Await Task.Delay(1)
             End If
         End While
     End Sub
