@@ -304,6 +304,7 @@ Public Class DatabaseInitializer
         sb.AppendLine("    count INT,")
         sb.AppendLine("    lac INT,")
         sb.AppendLine("    band INT,")
+        sb.AppendLine("    pci INT,")
         sb.AppendLine("    last_updated DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()")
         sb.AppendLine(");")
         sb.AppendLine("END")

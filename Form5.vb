@@ -287,12 +287,10 @@ Public Class Form5
             Dim earfcnObj = row.Cells("earfcn").Value
 
             If earfcnObj Is Nothing OrElse String.IsNullOrWhiteSpace(earfcnObj.ToString()) Then
-                ' disable
                 btnCell.Value = "" ' hide text
                 btnCell.Style.BackColor = Color.LightGray
                 btnCell.Style.ForeColor = Color.DarkGray
             Else
-                ' enable
                 btnCell.Value = "Apply"
                 btnCell.Style.ForeColor = Color.Green
             End If
@@ -345,7 +343,7 @@ Public Class Form5
             End Using
 
             If isGsm = 1 Then
-                MessageBox.Show("Your channel is in GSM mode, switch RAT first.")
+                Form1.HandleTechnologyChange(channelNumber, "lte")
                 Return
             End If
         End If
@@ -377,7 +375,9 @@ Public Class Form5
         UpdateApplyButtonsState()
     End Sub
 
-    Public Function GetLacAndPci(ByVal lteId As Integer) As Tuple(Of Integer, Integer)
+    Shared Function GetLacAndPci(ByVal lteId As Integer) As Tuple(Of Integer, Integer)
+        Dim connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+
         Dim lac As Integer = -1
         Dim pci As Integer = -1
 

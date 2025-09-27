@@ -22,6 +22,7 @@ Public Class Form1
     Private WithEvents pingTimer As System.Windows.Forms.Timer
     Private originalValues As New Dictionary(Of String, String)
     Private editModeButtons As New Dictionary(Of Integer, Button)()
+    Private saveHandlerAttached As New HashSet(Of Control)()
     Private udpClientLteWcdma As UdpClient
     Private udpClientGsm As UdpClient
     Private receivingThread As Thread
@@ -105,7 +106,7 @@ Public Class Form1
             AddHandler DataGridView2.SelectionChanged, AddressOf DataGridView_SelectionChanged
             AddHandler DataGridView1.SelectionChanged, AddressOf DataGridView_SelectionChanged
 
-
+            InitializeSaveHandlers()
             InitializeGMap()
             LoadTaskingList()
             Task.Run(Sub() UpdateButtonColors())
@@ -633,7 +634,6 @@ Public Class Form1
                 isWcdma = 1
             End If
 
-            ' 👇 Pick correct frequency depending on tech
             Dim finalFreq As Integer = If(isGsm = 1, arfcn, erfcn)
 
             Dim sql As String = "
@@ -650,11 +650,12 @@ Public Class Form1
                        mnc = @mnc,
                        cid = @cid,
                        lac = @lac,
+                       pci = @pci,
                        band = @band,
                        last_updated = SYSUTCDATETIME()
         WHEN NOT MATCHED THEN
-            INSERT (channel_number, is_lte, is_gsm, is_wcdma, earfcn, mcc, bsic, mnc, cid, lac, band, last_updated)
-            VALUES (@channel_number, @is_lte, @is_gsm, @is_wcdma, @finalFreq, @mcc, @bsic, @mnc, @cid, @lac, @band, SYSUTCDATETIME());"
+            INSERT (channel_number, is_lte, is_gsm, is_wcdma, earfcn, mcc, bsic, mnc, cid, lac, pci, band, last_updated)
+            VALUES (@channel_number, @is_lte, @is_gsm, @is_wcdma, @finalFreq, @mcc, @bsic, @mnc, @cid, @lac, @pci, @band, SYSUTCDATETIME());"
 
             Using conn As New SqlClient.SqlConnection(connectionString)
                 Using cmd As New SqlClient.SqlCommand(sql, conn)
@@ -665,6 +666,7 @@ Public Class Form1
                     cmd.Parameters.AddWithValue("@mnc", mnc)
                     cmd.Parameters.AddWithValue("@cid", cid)
                     cmd.Parameters.AddWithValue("@lac", lac)
+                    cmd.Parameters.AddWithValue("@pci", pci)
                     cmd.Parameters.AddWithValue("@band", GetBandFrequency(band))
                     cmd.Parameters.AddWithValue("@is_lte", isLte)
                     cmd.Parameters.AddWithValue("@is_gsm", isGsm)
@@ -3568,7 +3570,6 @@ Public Class Form1
         AddNumericConstraint(TextBox141, 3) ' CH13 MCC
         AddNumericConstraint(TextBox145, 3) ' CH14 MCC
 
-        ' MNC fields (2-3 digits) - Complete all MNC fields
         AddNumericConstraint(TextBox2, 3) ' CH1 MNC
         AddNumericConstraint(TextBox100, 3) ' CH2 MNC
         AddNumericConstraint(TextBox104, 3) ' CH3 MNC
@@ -3583,7 +3584,6 @@ Public Class Form1
         AddNumericConstraint(TextBox140, 3) ' CH13 MNC
         AddNumericConstraint(TextBox144, 3) ' CH14 MNC
 
-        ' EARFCN fields (0-65535) - Complete all EARFCN fields
         AddNumericConstraint(TextBox3, 5) ' CH1 EARFCN
         AddNumericConstraint(TextBox99, 5) ' CH2 EARFCN
         AddNumericConstraint(TextBox103, 5) ' CH3 EARFCN
@@ -3598,13 +3598,11 @@ Public Class Form1
         AddNumericConstraint(TextBox139, 5) ' CH13 EARFCN
         AddNumericConstraint(TextBox143, 5) ' CH14 EARFCN
 
-        ' BSIC fields (0-63, 1 byte) - Complete all BSIC fields
         AddNumericConstraint(TextBox97, 2) ' CH1 BSIC
         AddNumericConstraint(TextBox98, 2) ' CH2 BSIC
         AddNumericConstraint(TextBox102, 2) ' CH3 BSIC
         AddNumericConstraint(TextBox106, 2) ' CH4 BSIC
 
-        ' Additional EARFCN field for channel 9
         AddNumericConstraint(TextBox126, 5) ' CH9 EARFCN2
     End Sub
 
@@ -3680,6 +3678,59 @@ Public Class Form1
         Return {lbl, txt}
     End Function
 
+
+    Private Sub AttachSaveHandlers(channel As Integer,
+                                   technologyCombo As ComboBox,
+                                   mccTextBox As TextBox,
+                                   mncTextBox As TextBox,
+                                   earfcnTextBox As TextBox,
+                                   Optional bsicTextBox As TextBox = Nothing,
+                                   Optional earfcn2TextBox As TextBox = Nothing)
+
+        Dim ctrls As New List(Of Control) From {
+            technologyCombo, mccTextBox, mncTextBox, earfcnTextBox
+        }
+        If bsicTextBox IsNot Nothing Then ctrls.Add(bsicTextBox)
+        If earfcn2TextBox IsNot Nothing Then ctrls.Add(earfcn2TextBox)
+
+        For Each ctrl In ctrls
+            If ctrl Is Nothing Then Continue For
+
+            If Not saveHandlerAttached.Contains(ctrl) Then
+                saveHandlerAttached.Add(ctrl)
+
+                AddHandler ctrl.KeyDown, Sub(s As Object, e As KeyEventArgs)
+                                             If e.KeyCode = Keys.Enter Then
+                                                 Try
+                                                     e.SuppressKeyPress = True
+                                                     Console.WriteLine("Enter clicked on item")
+                                                     SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text, earfcn2TextBox.Text)
+                                                 Catch ex As Exception
+                                                     MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
+                                                 End Try
+                                             End If
+                                         End Sub
+            End If
+        Next
+    End Sub
+
+    Private Sub InitializeSaveHandlers()
+        AttachSaveHandlers(1, ComboBox12, TextBox1, TextBox2, TextBox3, TextBox97)
+        AttachSaveHandlers(2, ComboBox13, TextBox101, TextBox100, TextBox99, TextBox98)
+        AttachSaveHandlers(3, ComboBox14, TextBox105, TextBox104, TextBox103, TextBox102)
+        AttachSaveHandlers(4, ComboBox15, TextBox109, TextBox108, TextBox107, TextBox106)
+        AttachSaveHandlers(5, ComboBox16, TextBox113, TextBox112, TextBox111)
+        AttachSaveHandlers(6, ComboBox17, TextBox117, TextBox116, TextBox115)
+        AttachSaveHandlers(7, ComboBox18, TextBox121, TextBox120, TextBox119)
+        AttachSaveHandlers(8, ComboBox19, TextBox125, TextBox124, TextBox123)
+        AttachSaveHandlers(9, ComboBox20, TextBox129, TextBox128, TextBox127, Nothing, TextBox126)
+        AttachSaveHandlers(11, ComboBox21, TextBox133, TextBox132, TextBox131)
+        AttachSaveHandlers(12, ComboBox22, TextBox137, TextBox136, TextBox135)
+        AttachSaveHandlers(13, ComboBox23, TextBox141, TextBox140, TextBox139)
+        AttachSaveHandlers(14, ComboBox24, TextBox145, TextBox144, TextBox143)
+    End Sub
+
+
     Private Sub SaveBaseStation(channel As Integer, technology As String, mccText As String, mncText As String, earfcnText As String, Optional bsicText As String = Nothing, Optional earfcn2Text As String = Nothing)
         Try
             Dim mcc = ParseInteger(mccText)
@@ -3700,10 +3751,13 @@ Public Class Form1
                 InsertBaseStation(channel, technology, mcc, mnc, earfcn, bsic, earfcn2, isGsm, isLte, isWcdma)
             End If
 
-            MessageBox.Show($"Base station CH{channel} saved successfully!")
-
-            buttonStates(channel) = False
-            UpdateButtonState(channel, True)
+            Dim ipAdd = GetChannelIPAddress(channel)
+            Dim result = GetBaseStationInfo(channel)
+            If isGsm Then
+                Form1.ApplyGsmBaseChannelSettings(ipAdd, mcc, mnc, earfcn, result.Value.Bsic, result.Value.Lac, result.Value.Cid)
+            ElseIf isLte Then
+                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, "", Result.Value.Lac, Result.Value.Cid) 'get pci, tac, cell_id
+            End If
 
             StoreOriginalValue($"CH{channel}_ComboBox", technology)
             StoreOriginalValue($"CH{channel}_TextBox1", mccText)
@@ -3731,9 +3785,9 @@ Public Class Form1
         End Try
     End Sub
 
-    Shared Function ApplyGsmBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, fcn As Integer, psc As Integer, lac As Integer, cellId As Integer)
+    Shared Function ApplyGsmBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, fcn As Integer, bsic As Integer, lac As Integer, cellId As Integer)
         Try
-            Dim command As String = $"SetRfPara {mcc} {mnc} {fcn} {psc} {lac} {cellId}"
+            Dim command As String = $"SetRfPara {mcc} {mnc} {fcn} {bsic} {lac} {cellId}"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
             udp.Send(data, data.Length, ipAddress, 9001)
         Catch ex As Exception
@@ -3741,10 +3795,10 @@ Public Class Form1
         End Try
     End Function
 
-    Shared Function ApplyLteBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, earfcn As Integer, psc As Integer, lac As Integer, cellId As Integer)
+    Shared Function ApplyLteBaseChannelSettings(ipAddress As String, mcc As Integer, mnc As Integer, earfcn As Integer, pci As Integer, tac As Integer, cellId As Integer)
         Console.WriteLine("Applying channel settings")
         Try
-            Dim command As String = $"SetRfPara {mcc} {mnc} {earfcn} {psc} {lac} {cellId}"
+            Dim command As String = $"SetRfPara {mcc} {mnc} {earfcn} {pci} {tac} {cellId}"
             Dim data As Byte() = Encoding.ASCII.GetBytes(command)
             udp.Send(data, data.Length, ipAddress, 9001)
         Catch ex As Exception
@@ -3766,6 +3820,30 @@ Public Class Form1
                 End If
             End Using
         End Using
+        Return Nothing
+    End Function
+
+    Public Function GetBaseStationInfo(channelNumber As Integer) As (Bsic As Integer, Lac As Integer, Cid As Integer)?
+        Using connection As New SqlConnection(connectionString)
+            connection.Open()
+
+            Dim query As String = "SELECT bsic, lac, cid FROM base_stations WHERE channel_number = @channelNumber"
+
+            Using cmd As New SqlCommand(query, connection)
+                cmd.Parameters.AddWithValue("@channelNumber", channelNumber)
+
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    If reader.Read() Then
+                        Dim bsic As Integer = If(IsDBNull(reader("bsic")), -1, Convert.ToInt32(reader("bsic")))
+                        Dim lac As Integer = If(IsDBNull(reader("lac")), -1, Convert.ToInt32(reader("lac")))
+                        Dim cid As Integer = If(IsDBNull(reader("cid")), -1, Convert.ToInt32(reader("cid")))
+
+                        Return (bsic, lac, cid)
+                    End If
+                End Using
+            End Using
+        End Using
+
         Return Nothing
     End Function
 
@@ -4294,8 +4372,7 @@ Public Class Form1
         HandleTechnologyChange(4, ComboBox15.SelectedItem.ToString())
     End Sub
 
-
-    Private Sub HandleTechnologyChange(channelNumber As Integer, technology As String)
+    Shared Sub HandleTechnologyChange(channelNumber As Integer, technology As String)
 
         Dim ipAddress As String = GetChannelIPAddress(channelNumber)
         Dim command As String = ""

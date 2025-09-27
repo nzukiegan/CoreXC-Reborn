@@ -266,8 +266,7 @@ Public Class Form6
                 End Using
 
                 If isLte = 1 Then
-                    MessageBox.Show("Your channel is in LTE mode, switch RAT first.")
-                    Return
+                    Form1.HandleTechnologyChange(channelNumber, "gsm")
                 End If
             End If
 
