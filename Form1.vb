@@ -2948,7 +2948,6 @@ Public Class Form1
         Dim channel As Integer = GetChannelFromTextBoxName(txt.Name)
 
         If channel > 0 Then
-            ' Get all textboxes for this channel and validate
             Dim textBoxes = GetTextboxesForChannel(channel)
             Dim comboBox = GetComboBoxForChannel(channel)
             ValidateChannelFields(channel, textBoxes, comboBox)
@@ -2956,7 +2955,6 @@ Public Class Form1
     End Sub
 
     Private Function GetChannelFromTextBoxName(name As String) As Integer
-        ' Extract channel number from textbox name
         Select Case True
             Case name = "TextBox1" : Return 1
             Case name = "TextBox2" : Return 1
@@ -3750,6 +3748,9 @@ Public Class Form1
 
 
     Private Sub SaveBaseStation(channel As Integer, technology As String, mccText As String, mncText As String, earfcnText As String, Optional bsicText As String = Nothing, Optional earfcn2Text As String = Nothing)
+        Console.WriteLine(
+        $"Saving CH{channel}: tech={technology}, mcc={mccText}, mnc={mncText}, earfcn={earfcnText}, bsic={bsicText}, earfcn2={earfcn2Text}"
+    )
         Try
             Dim mcc = ParseInteger(mccText)
             Dim mnc = ParseInteger(mncText)
@@ -3774,7 +3775,7 @@ Public Class Form1
             If isGsm Then
                 Form1.ApplyGsmBaseChannelSettings(ipAdd, mcc, mnc, earfcn, result.Value.Bsic, result.Value.Lac, result.Value.Cid)
             ElseIf isLte Then
-                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, "", Result.Value.Lac, Result.Value.Cid) 'get pci, tac, cell_id
+                Form1.ApplyLteBaseChannelSettings(ipAdd, mcc, mnc, earfcn, "", result.Value.Lac, result.Value.Cid) 'get pci, tac, cell_id
             End If
 
             StoreOriginalValue($"CH{channel}_ComboBox", technology)
