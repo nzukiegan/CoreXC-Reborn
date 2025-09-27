@@ -134,21 +134,39 @@ Public Class Form1
         End Try
     End Sub
 
-    Private ipAddresses As New List(Of String) From {
-        "192.168.1.90",
-        "192.168.1.91",
-        "192.168.1.92",
-        "192.168.1.93",
-        "192.168.1.94",
-        "192.168.1.95",
-        "192.168.1.96",
-        "192.168.1.97",
-        "192.168.1.98",
-        "192.168.1.101",
-        "192.168.1.102",
-        "192.168.1.103",
-        "192.168.1.104"
-    }
+    Private Async Sub SendTestLogEntries()
+        Dim client As New UdpClient()
+        Dim targetIp As String = "127.0.0.1"
+        Dim targetPort As Integer = 9001
+
+        Dim template As String =
+        "StartCell {0} SRC{1} time[{2}] taType[Attach] imsi[{3}] imei[356789012345678] ulSig[{4}] ulTa[{5}] bl_indi[{6}] tmsi[{7}] lac[{8}] dlrscp[{9}]"
+
+        Dim rnd As New Random()
+
+        For i As Integer = 1 To 20
+            Dim logLine As String = String.Format(template,
+            i,                                  ' no
+            rnd.Next(1, 5),                     ' source
+            rnd.Next(1000, 9999),               ' time
+            "31015" & rnd.Next(1000000, 9999999), ' IMSI (MCC=310, MNC=15)
+            rnd.Next(10, 90),                   ' ulSig
+            rnd.Next(1, 30),                    ' ulTa
+            rnd.Next(0, 2),                     ' bl_indi (0 or 1)
+            rnd.Next(100000, 999999).ToString("X"), ' tmsi in hex
+            rnd.Next(1000, 2000),               ' lac
+            rnd.Next(-90, -50)                  ' dlrscp
+        )
+
+            Dim bytes As Byte() = Encoding.ASCII.GetBytes(logLine)
+            Await client.SendAsync(bytes, bytes.Length, targetIp, targetPort)
+
+            Console.WriteLine("Sent test log line: " & logLine)
+            Await Task.Delay(200)
+        Next
+
+        client.Close()
+    End Sub
 
     Public Sub StartHeartbeat()
         If heartbeatRunning Then Exit Sub
@@ -159,8 +177,8 @@ Public Class Form1
 
                      While heartbeatRunning
                          Try
-                             For Each add In ipAddresses
-                                 Dim remoteEndPoint As New IPEndPoint(IPAddress.Parse(add), 9001)
+                             For Each addr As String In ipMap.Values
+                                 Dim remoteEndPoint As New IPEndPoint(IPAddress.Parse(addr), 9001)
                                  Await udp.SendAsync(cmdBytes, cmdBytes.Length, remoteEndPoint)
                              Next
                          Catch ex As Exception
@@ -407,11 +425,9 @@ Public Class Form1
         {Button29, "192.168.1.104"}  ' CH14
     }
 
-        ' Update each button color based on ping response
         For Each kvp In buttonIpMap
             Dim isOnline As Boolean = PingHost(kvp.Value)
 
-            ' Use Invoke to update UI thread safely
             If kvp.Key.InvokeRequired Then
                 kvp.Key.Invoke(Sub()
                                    kvp.Key.BackColor = If(isOnline, Color.Lime, Color.Red)
@@ -1851,6 +1867,7 @@ Public Class Form1
     Private Sub TabPage3_Enter(sender As Object, e As EventArgs) Handles TabPage3.Enter
         LoadScanResults()
         LoadChartData()
+        SendTestLogEntries()
     End Sub
 
     Private Sub Button34_Click(sender As Object, e As EventArgs) Handles Button34.Click
