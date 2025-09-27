@@ -1287,7 +1287,7 @@ Public Class Form1
     End Sub
 
 
-    Private Async Sub HandleSwitchResponse(response As String)
+    Private Sub HandleSwitchResponse(response As String)
         Console.WriteLine("SwtichResponse " & response)
         Dim channelNo As Integer = -1
 
@@ -1320,74 +1320,6 @@ Public Class Form1
             progressPanel.Visible = True
         End If
     End Sub
-
-    Private Sub AddRefreshButton()
-        refreshBtn.Size = New Size(80, 25)
-        refreshBtn.Location = New Point(GroupBox31.Location.X + GroupBox31.Width - 60, GroupBox31.Location.Y - 2)
-
-        refreshIcon = New Bitmap(My.Resources.refreshBtn, New Size(15, 15))
-        refreshBtn.Image = refreshIcon
-        refreshBtn.ImageAlign = ContentAlignment.MiddleLeft
-        refreshBtn.TextImageRelation = TextImageRelation.ImageBeforeText
-        refreshBtn.Text = "Refresh"
-        refreshBtn.TextAlign = ContentAlignment.MiddleRight
-
-        AddHandler refreshBtn.Click, AddressOf refreshBtn_Click
-
-        Me.Controls.Add(refreshBtn)
-        refreshBtn.BringToFront()
-
-        refreshTimer.Interval = 50
-    End Sub
-
-    Private Async Sub refreshBtn_Click(sender As Object, e As EventArgs)
-        refresh()
-    End Sub
-
-    Private Async Sub refresh()
-        If isRefreshing Then Return
-        isRefreshing = True
-
-        refreshTimer.Start()
-
-        Try
-            Await Task.Run(Sub()
-                               LoadBaseStationData()
-                               LoadBaseStationData1()
-                               LoadBlacklistData()
-                               LoadWhitelistData()
-                               LoadChartData()
-                               LoadScanResults()
-                               LoadTaskingList()
-                           End Sub)
-
-            MessageBox.Show("Data refreshed successfully.", "Refreshed",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information)
-        Catch ex As Exception
-            MessageBox.Show("Error refreshing data: " & ex.Message, "Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error)
-        Finally
-            refreshTimer.Stop()
-            refreshBtn.Image = refreshIcon
-            isRefreshing = False
-        End Try
-    End Sub
-
-    Private Sub refreshTimer_Tick(sender As Object, e As EventArgs) Handles refreshTimer.Tick
-        refreshAngle += 10
-        If refreshAngle >= 360 Then refreshAngle = 0
-
-        Dim rotated As New Bitmap(refreshIcon.Width, refreshIcon.Height)
-        Using g As Graphics = Graphics.FromImage(rotated)
-            g.TranslateTransform(refreshIcon.Width \ 2, refreshIcon.Height \ 2)
-            g.RotateTransform(refreshAngle)
-            g.TranslateTransform(-refreshIcon.Width \ 2, -refreshIcon.Height \ 2)
-            g.DrawImage(refreshIcon, New Point(0, 0))
-        End Using
-
-        refreshBtn.Image = rotated
-    End Sub
-
 
     Private Sub CheckAnalysisStatus()
         If Not analyzingGsm AndAlso Not analyzingLteWcdma Then
