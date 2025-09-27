@@ -69,7 +69,22 @@ Public Class Form1
     Private heartbeatRunning As Boolean = False
     Private packetQueue As ConcurrentQueue(Of Tuple(Of Byte(), String))
     Private workerTasks As List(Of Task)
-
+    Private ipMap As New Dictionary(Of Integer, String) From {
+            {1, "192.168.1.90"},
+            {2, "192.168.1.91"},
+            {3, "192.168.1.92"},
+            {4, "192.168.1.93"},
+            {5, "192.168.1.94"},
+            {6, "192.168.1.95"},
+            {7, "192.168.1.96"},
+            {8, "192.168.1.97"},
+            {9, "192.168.1.98"},
+            {10, "192.168.1.99"},
+            {11, "192.168.1.101"},
+            {12, "192.168.1.102"},
+            {13, "192.168.1.103"},
+            {14, "192.168.1.104"}
+        }
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
@@ -575,7 +590,7 @@ Public Class Form1
                     Console.WriteLine("Worker Error: " & ex.Message)
                 End Try
             Else
-                Threading.Thread.Sleep(5) ' avoid busy-spin if queue empty
+                Threading.Thread.Sleep(5)
             End If
         End While
     End Sub
@@ -2848,27 +2863,29 @@ Public Class Form1
                 Return
             End If
 
-            Dim filePath As String = IO.Path.Combine(Application.StartupPath, "blacklist.txt")
-            Dim newLine As String = $"{imsi},{imei}"
+            Dim command As String = $"SetBlacklist {imsi}"
 
-            If Not IO.File.Exists(filePath) Then
-                IO.File.WriteAllText(filePath, newLine & Environment.NewLine)
-                MessageBox.Show("IMSI and IMEI added to blacklist.txt successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                Return
-            End If
+            For Each kvp In ipMap
+                Dim targetIp As String = kvp.Value
+                Task.Run(Sub() SendBlacklistCommand(targetIp, 9001, command))
+            Next
 
-            Dim allLines As List(Of String) = IO.File.ReadAllLines(filePath).ToList()
-            If Not allLines.Contains(newLine) Then
-                IO.File.AppendAllText(filePath, newLine & Environment.NewLine)
-                MessageBox.Show("IMSI and IMEI added to blacklist.txt successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Else
-                MessageBox.Show("This IMSI/IMEI pair already exists in blacklist.txt.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            End If
+            MessageBox.Show("Blacklist command sent to all devices.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
         Catch ex As Exception
-            MessageBox.Show("Error writing to blacklist.txt: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show("Error while sending blacklist command: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
+
+    Private Sub SendBlacklistCommand(ip As String, port As Integer, command As String)
+        Try
+            Dim bytes As Byte() = Encoding.ASCII.GetBytes(command)
+            udp.Send(bytes, bytes.Length, ip, port)
+        Catch ex As Exception
+            Console.WriteLine($"Error sending to {ip}: {ex.Message}")
+        End Try
+    End Sub
+
 
 
     Private Sub Button79_Click(sender As Object, e As EventArgs) Handles Button79.Click

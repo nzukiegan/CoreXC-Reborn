@@ -1,8 +1,5 @@
 ﻿Imports System.Data.SqlClient
-Imports System.Drawing
 Imports System.Text.RegularExpressions
-Imports System.Windows.Forms
-Imports Org.BouncyCastle.Asn1.Cms
 
 Public Class Form5
     Private ReadOnly connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
