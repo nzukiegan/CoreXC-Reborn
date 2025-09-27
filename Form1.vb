@@ -1226,7 +1226,7 @@ Public Class Form1
     Private Async Function RunPeriodicUpdates() As Task
         While True
             Try
-                Await Task.Delay(30000)
+                Await Task.Delay(120000)
                 Await dbInitializer.GetBaseStationsFromBackend(udp)
                 LoadBaseStationData()
                 LoadBaseStationData1()
