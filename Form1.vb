@@ -580,15 +580,6 @@ Public Class Form1
         End While
     End Sub
 
-    Private Sub StopUdpListener()
-        listenerRunning = False
-        Try
-            udp?.Close()
-        Catch
-        End Try
-        Task.WaitAll(workerTasks.ToArray())
-    End Sub
-
     Private Sub ProcessUdpMessage(response As String, senderIp As String)
         Try
             processResponse(response)
