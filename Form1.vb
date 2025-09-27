@@ -3801,7 +3801,7 @@ Public Class Form1
             End If
 
         Catch ex As Exception
-            MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
+            Console.WriteLine($"Error saving base station CH{channel}: {ex.StackTrace}")
         End Try
     End Sub
 
