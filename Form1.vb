@@ -69,7 +69,7 @@ Public Class Form1
     Private heartbeatRunning As Boolean = False
     Private packetQueue As ConcurrentQueue(Of Tuple(Of Byte(), String))
     Private workerTasks As List(Of Task)
-    Private ipMap As New Dictionary(Of Integer, String) From {
+    Public Shared ipMap As New Dictionary(Of Integer, String) From {
             {1, "192.168.1.90"},
             {2, "192.168.1.91"},
             {3, "192.168.1.92"},
@@ -92,7 +92,6 @@ Public Class Form1
             analyzingGsm = False
             InitializeEditModeButtons()
             InitializeProgressIndicator()
-            AddRefreshButton()
             dbInitializer = New DatabaseInitializer("(localdb)\\MSSQLLocalDB", "CoreXCDb1")
             Await dbInitializer.EnsureDatabaseExistsAsync()
             Await dbInitializer.ApplySchemaAsync()

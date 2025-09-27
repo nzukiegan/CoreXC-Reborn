@@ -76,33 +76,18 @@ Public Class DatabaseInitializer
     End Function
 
     Public Async Function GetBaseStationsFromBackend(udp As UdpClient, Optional channelNumber As Integer? = Nothing) As Task
-        Dim buttonIpMap As New Dictionary(Of Integer, String) From {
-        {1, "192.168.1.90"},
-        {2, "192.168.1.91"},
-        {3, "192.168.1.92"},
-        {4, "192.168.1.93"},
-        {5, "192.168.1.94"},
-        {6, "192.168.1.95"},
-        {7, "192.168.1.96"},
-        {8, "192.168.1.97"},
-        {9, "192.168.1.98"},
-        {11, "192.168.1.101"},
-        {12, "192.168.1.102"},
-        {13, "192.168.1.103"},
-        {14, "192.168.1.104"}
-    }
 
         Dim targets As IEnumerable(Of KeyValuePair(Of Integer, String))
 
         If channelNumber.HasValue Then
-            If buttonIpMap.ContainsKey(channelNumber.Value) Then
-                targets = {New KeyValuePair(Of Integer, String)(channelNumber.Value, buttonIpMap(channelNumber.Value))}
+            If Form1.ipMap.ContainsKey(channelNumber.Value) Then
+                targets = {New KeyValuePair(Of Integer, String)(channelNumber.Value, Form1.ipMap(channelNumber.Value))}
             Else
                 Console.WriteLine($"Channel {channelNumber.Value} not found in map.")
                 Return
             End If
         Else
-            targets = buttonIpMap
+            targets = Form1.ipMap
         End If
 
         For Each kvp In targets
