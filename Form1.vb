@@ -14,6 +14,7 @@ Imports GMap.NET.MapProviders
 Imports GMap.NET.WindowsForms
 Imports GMap.NET.WindowsForms.Markers
 Imports Newtonsoft.Json.Linq
+Imports System.Collections.Concurrent
 
 Public Class Form1
     Private cts As Threading.CancellationTokenSource
@@ -66,6 +67,8 @@ Public Class Form1
     Private SelectedSchema1 As String = String.Empty
     Private dbInitializer As DatabaseInitializer
     Private heartbeatRunning As Boolean = False
+    Private packetQueue As ConcurrentQueue(Of Tuple(Of Byte(), String))
+    Private workerTasks As List(Of Task)
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -528,33 +531,62 @@ Public Class Form1
         StartChannelAnalyzer()
     End Sub
 
-    Private Async Sub StartUdpListener()
+
+    Private Sub StartUdpListener()
         If listenerRunning Then Return
 
         udp = New UdpClient(New IPEndPoint(IPAddress.Any, 9001))
-        udp.Client.ReceiveBufferSize = 65536
-        udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 65536)
+        udp.Client.ReceiveBufferSize = 1024 * 1024
+        udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 1024 * 1024)
+
+        packetQueue = New ConcurrentQueue(Of Tuple(Of Byte(), String))()
+        workerTasks = New List(Of Task)()
 
         listenerRunning = True
-        listenerTask = Task.Run(
-        Async Function()
-            While listenerRunning
-                Try
-                    If udp.Available > 0 Then
-                        Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
-                        Dim response As String = Encoding.ASCII.GetString(result.Buffer)
 
-                        Task.Run(Sub() ProcessUdpMessage(response, result.RemoteEndPoint.Address.ToString()))
-                    Else
-                        Await Task.Delay(10)
-                    End If
+        listenerTask = Task.Run(Async Function()
+                                    While listenerRunning
+                                        Try
+                                            Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
+                                            packetQueue.Enqueue(Tuple.Create(result.Buffer, result.RemoteEndPoint.Address.ToString()))
+                                        Catch ex As Exception
+                                            If listenerRunning Then
+                                                Console.WriteLine("Listener Error: " & ex.Message)
+                                            End If
+                                        End Try
+                                    End While
+                                End Function)
+
+        Dim workerCount As Integer = Environment.ProcessorCount
+        For i As Integer = 1 To workerCount
+            Dim worker = Task.Run(Sub() WorkerLoop())
+            workerTasks.Add(worker)
+        Next
+    End Sub
+
+    Private Sub WorkerLoop()
+        While listenerRunning
+            Dim packet As Tuple(Of Byte(), String) = Nothing
+            If packetQueue.TryDequeue(packet) Then
+                Try
+                    Dim response As String = Encoding.ASCII.GetString(packet.Item1)
+                    ProcessUdpMessage(response, packet.Item2)
                 Catch ex As Exception
-                    If listenerRunning Then
-                        Console.WriteLine("Listener Error: " & ex.Message)
-                    End If
+                    Console.WriteLine("Worker Error: " & ex.Message)
                 End Try
-            End While
-        End Function)
+            Else
+                Threading.Thread.Sleep(5) ' avoid busy-spin if queue empty
+            End If
+        End While
+    End Sub
+
+    Private Sub StopUdpListener()
+        listenerRunning = False
+        Try
+            udp?.Close()
+        Catch
+        End Try
+        Task.WaitAll(workerTasks.ToArray())
     End Sub
 
     Private Sub ProcessUdpMessage(response As String, senderIp As String)
