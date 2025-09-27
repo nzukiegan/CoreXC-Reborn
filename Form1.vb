@@ -3703,7 +3703,7 @@ Public Class Form1
                                              If e.KeyCode = Keys.Enter Then
                                                  Try
                                                      e.SuppressKeyPress = True
-                                                     Console.WriteLine("Enter clicked on item")
+                                                     Console.WriteLine("Enter clicked on item: " & channel & technologyCombo.Text & mccTextBox.Text & mncTextBox.Text & earfcnTextBox.Text & bsicTextBox.Text & earfcn2TextBox.Text)
                                                      SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text, earfcn2TextBox.Text)
                                                  Catch ex As Exception
                                                      MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
