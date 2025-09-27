@@ -2786,15 +2786,34 @@ Public Class Form1
 
     Private Sub Button76_Click(sender As Object, e As EventArgs) Handles Button76.Click
         Try
-            Dim imsi As String = selectedBimsi
-            Dim imei As String = selectedBImei
-
-            If String.IsNullOrEmpty(imsi) OrElse String.IsNullOrEmpty(imei) Then
-                MessageBox.Show("IMSI or IMEI is empty. Cannot add to blacklist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            If String.IsNullOrEmpty(selectedSchema) Then
+                MessageBox.Show("No schema selected. Cannot query blacklist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 Return
             End If
 
-            Dim command As String = $"SetBlacklist {imsi}"
+            Dim imsis As New List(Of String)
+
+            Dim query As String = $"SELECT imsi FROM [{selectedSchema}].blacklist"
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using cmd As New SqlCommand(query, conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        While reader.Read()
+                            If Not reader.IsDBNull(0) Then
+                                imsis.Add(reader.GetString(0))
+                            End If
+                        End While
+                    End Using
+                End Using
+            End Using
+
+            If imsis.Count = 0 Then
+                MessageBox.Show("No IMSIs found in blacklist.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            Dim command As String = $"SetBlacklist {String.Concat(imsis)}"
 
             For Each kvp In ipMap
                 Dim targetIp As String = kvp.Value
@@ -2816,8 +2835,6 @@ Public Class Form1
             Console.WriteLine($"Error sending to {ip}: {ex.Message}")
         End Try
     End Sub
-
-
 
     Private Sub Button79_Click(sender As Object, e As EventArgs) Handles Button79.Click
         If String.IsNullOrEmpty(selectedWimsi) Then
