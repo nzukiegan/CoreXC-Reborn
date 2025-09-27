@@ -106,7 +106,6 @@ Public Class Form1
             AddHandler DataGridView2.SelectionChanged, AddressOf DataGridView_SelectionChanged
             AddHandler DataGridView1.SelectionChanged, AddressOf DataGridView_SelectionChanged
 
-            InitializeSaveHandlers()
             InitializeGMap()
             LoadTaskingList()
             Task.Run(Sub() UpdateButtonColors())
@@ -3682,70 +3681,83 @@ Public Class Form1
         Return {lbl, txt}
     End Function
 
-
-    Private Sub AttachSaveHandlers(channel As Integer,
-                                   technologyCombo As ComboBox,
-                                   mccTextBox As TextBox,
-                                   mncTextBox As TextBox,
-                                   earfcnTextBox As TextBox,
-                                   Optional bsicTextBox As TextBox = Nothing,
-                                   Optional earfcn2TextBox As TextBox = Nothing)
-
-        Dim ctrls As New List(Of Control) From {
-            technologyCombo, mccTextBox, mncTextBox, earfcnTextBox
-        }
-        If bsicTextBox IsNot Nothing Then ctrls.Add(bsicTextBox)
-        If earfcn2TextBox IsNot Nothing Then ctrls.Add(earfcn2TextBox)
-
-        For Each ctrl In ctrls
-            If ctrl Is Nothing Then Continue For
-
-            If Not saveHandlerAttached.Contains(ctrl) Then
-                saveHandlerAttached.Add(ctrl)
-
-                AddHandler ctrl.KeyDown, Sub(s As Object, e As KeyEventArgs)
-                                             If e.KeyCode = Keys.Enter Then
-                                                 Try
-                                                     e.SuppressKeyPress = True
-                                                     If bsicTextBox IsNot Nothing AndAlso earfcn2TextBox IsNot Nothing Then
-                                                         Console.WriteLine($"CH{channel} → tech={technologyCombo.Text}, mcc={mccTextBox.Text}, mnc={mncTextBox.Text}, earfcn={earfcnTextBox.Text}, bsic={bsicTextBox.Text}, earfcn2={earfcn2TextBox.Text}")
-                                                         SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text, earfcn2TextBox.Text)
-
-                                                     ElseIf bsicTextBox IsNot Nothing Then
-                                                         Console.WriteLine($"CH{channel} → tech={technologyCombo.Text}, mcc={mccTextBox.Text}, mnc={mncTextBox.Text}, earfcn={earfcnTextBox.Text}, bsic={bsicTextBox.Text}")
-                                                         SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text, bsicTextBox.Text)
-
-                                                     Else
-                                                         Console.WriteLine($"CH{channel} → tech={technologyCombo.Text}, mcc={mccTextBox.Text}, mnc={mncTextBox.Text}, earfcn={earfcnTextBox.Text}")
-                                                         SaveBaseStation(channel, technologyCombo.Text, mccTextBox.Text, mncTextBox.Text, earfcnTextBox.Text)
-                                                     End If
-
-
-                                                 Catch ex As Exception
-                                                     MessageBox.Show($"Error saving base station CH{channel}: {ex.Message}")
-                                                 End Try
-                                             End If
-                                         End Sub
-            End If
-        Next
+    Private Sub Button37_Click(sender As Object, e As EventArgs) Handles Button37.Click
+        If AreFieldsFilled(ComboBox12.Text, TextBox1.Text, TextBox2.Text, TextBox3.Text, TextBox97.Text) Then
+            SaveBaseStation(1, ComboBox12.Text, TextBox1.Text, TextBox2.Text, TextBox3.Text, TextBox97.Text)
+        End If
     End Sub
 
-    Private Sub InitializeSaveHandlers()
-        AttachSaveHandlers(1, ComboBox12, TextBox1, TextBox2, TextBox3, TextBox97)
-        AttachSaveHandlers(2, ComboBox13, TextBox101, TextBox100, TextBox99, TextBox98)
-        AttachSaveHandlers(3, ComboBox14, TextBox105, TextBox104, TextBox103, TextBox102)
-        AttachSaveHandlers(4, ComboBox15, TextBox109, TextBox108, TextBox107, TextBox106)
-        AttachSaveHandlers(5, ComboBox16, TextBox113, TextBox112, TextBox111)
-        AttachSaveHandlers(6, ComboBox17, TextBox117, TextBox116, TextBox115)
-        AttachSaveHandlers(7, ComboBox18, TextBox121, TextBox120, TextBox119)
-        AttachSaveHandlers(8, ComboBox19, TextBox125, TextBox124, TextBox123)
-        AttachSaveHandlers(9, ComboBox20, TextBox129, TextBox128, TextBox127, Nothing, TextBox126)
-        AttachSaveHandlers(11, ComboBox21, TextBox133, TextBox132, TextBox131)
-        AttachSaveHandlers(12, ComboBox22, TextBox137, TextBox136, TextBox135)
-        AttachSaveHandlers(13, ComboBox23, TextBox141, TextBox140, TextBox139)
-        AttachSaveHandlers(14, ComboBox24, TextBox145, TextBox144, TextBox143)
+    Private Sub Button38_Click(sender As Object, e As EventArgs) Handles Button38.Click
+        If AreFieldsFilled(ComboBox13.Text, TextBox101.Text, TextBox100.Text, TextBox99.Text, TextBox98.Text) Then
+            SaveBaseStation(2, ComboBox13.Text, TextBox101.Text, TextBox100.Text, TextBox99.Text, TextBox98.Text)
+        End If
     End Sub
 
+    Private Sub Button39_Click(sender As Object, e As EventArgs) Handles Button39.Click
+        If AreFieldsFilled(ComboBox14.Text, TextBox105.Text, TextBox104.Text, TextBox103.Text, TextBox102.Text) Then
+            SaveBaseStation(3, ComboBox14.Text, TextBox105.Text, TextBox104.Text, TextBox103.Text, TextBox102.Text)
+        End If
+    End Sub
+
+    Private Sub Button40_Click(sender As Object, e As EventArgs) Handles Button40.Click
+        If AreFieldsFilled(ComboBox15.Text, TextBox109.Text, TextBox108.Text, TextBox107.Text, TextBox106.Text) Then
+            SaveBaseStation(4, ComboBox15.Text, TextBox109.Text, TextBox108.Text, TextBox107.Text, TextBox106.Text)
+        End If
+    End Sub
+
+    Private Sub Button41_Click(sender As Object, e As EventArgs) Handles Button41.Click
+        If AreFieldsFilled(ComboBox16.Text, TextBox113.Text, TextBox112.Text, TextBox111.Text) Then
+            SaveBaseStation(5, ComboBox16.Text, TextBox113.Text, TextBox112.Text, TextBox111.Text)
+        End If
+    End Sub
+
+    Private Sub Button42_Click(sender As Object, e As EventArgs) Handles Button42.Click
+        If AreFieldsFilled(ComboBox17.Text, TextBox117.Text, TextBox116.Text, TextBox115.Text) Then
+            SaveBaseStation(6, ComboBox17.Text, TextBox117.Text, TextBox116.Text, TextBox115.Text)
+        End If
+    End Sub
+
+    Private Sub Button43_Click(sender As Object, e As EventArgs) Handles Button43.Click
+        If AreFieldsFilled(ComboBox18.Text, TextBox121.Text, TextBox120.Text, TextBox119.Text) Then
+            SaveBaseStation(7, ComboBox18.Text, TextBox121.Text, TextBox120.Text, TextBox119.Text)
+        End If
+    End Sub
+
+    Private Sub Button44_Click(sender As Object, e As EventArgs) Handles Button44.Click
+        If AreFieldsFilled(ComboBox19.Text, TextBox125.Text, TextBox124.Text, TextBox123.Text) Then
+            SaveBaseStation(8, ComboBox19.Text, TextBox125.Text, TextBox124.Text, TextBox123.Text)
+        End If
+    End Sub
+
+    Private Sub Button45_Click(sender As Object, e As EventArgs) Handles Button45.Click
+        If AreFieldsFilled(ComboBox20.Text, TextBox129.Text, TextBox128.Text, TextBox127.Text, TextBox126.Text) Then
+            SaveBaseStation(9, ComboBox20.Text, TextBox129.Text, TextBox128.Text, TextBox127.Text, Nothing, TextBox126.Text)
+        End If
+    End Sub
+
+    Private Sub Button46_Click(sender As Object, e As EventArgs) Handles Button46.Click
+        If AreFieldsFilled(ComboBox21.Text, TextBox133.Text, TextBox132.Text, TextBox131.Text) Then
+            SaveBaseStation(11, ComboBox21.Text, TextBox133.Text, TextBox132.Text, TextBox131.Text)
+        End If
+    End Sub
+
+    Private Sub Button47_Click(sender As Object, e As EventArgs) Handles Button47.Click
+        If AreFieldsFilled(ComboBox22.Text, TextBox137.Text, TextBox136.Text, TextBox135.Text) Then
+            SaveBaseStation(12, ComboBox22.Text, TextBox137.Text, TextBox136.Text, TextBox135.Text)
+        End If
+    End Sub
+
+    Private Sub Button48_Click(sender As Object, e As EventArgs) Handles Button48.Click
+        If AreFieldsFilled(ComboBox23.Text, TextBox141.Text, TextBox140.Text, TextBox139.Text) Then
+            SaveBaseStation(13, ComboBox23.Text, TextBox141.Text, TextBox140.Text, TextBox139.Text)
+        End If
+    End Sub
+
+    Private Sub Button49_Click(sender As Object, e As EventArgs) Handles Button49.Click
+        If AreFieldsFilled(ComboBox24.Text, TextBox145.Text, TextBox144.Text, TextBox143.Text) Then
+            SaveBaseStation(14, ComboBox24.Text, TextBox145.Text, TextBox144.Text, TextBox143.Text)
+        End If
+    End Sub
 
     Private Sub SaveBaseStation(channel As Integer, technology As String, mccText As String, mncText As String, earfcnText As String, Optional bsicText As String = Nothing, Optional earfcn2Text As String = Nothing)
         Console.WriteLine(
