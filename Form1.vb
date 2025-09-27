@@ -528,35 +528,72 @@ Public Class Form1
         StartChannelAnalyzer()
     End Sub
 
-    Private Sub StartUdpListener()
+    Private Async Sub StartUdpListener()
         If listenerRunning Then Return
 
         udp = New UdpClient(New IPEndPoint(IPAddress.Any, 9001))
+        udp.Client.ReceiveBufferSize = 65536
+        udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 65536)
 
         listenerRunning = True
         listenerTask = Task.Run(
         Async Function()
-
             While listenerRunning
                 Try
-                    Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
-                    Dim response As String = Encoding.ASCII.GetString(result.Buffer)
-                    Dim senderIp As String = result.RemoteEndPoint.Address.ToString()
-                    Try
-                        processResponse(response)
-                    Catch ex As Exception
-                        Console.WriteLine(ex.Message)
-                    End Try
+                    If udp.Available > 0 Then
+                        Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
+                        Dim response As String = Encoding.ASCII.GetString(result.Buffer)
+
+                        Task.Run(Sub() ProcessUdpMessage(response, result.RemoteEndPoint.Address.ToString()))
+                    Else
+                        Await Task.Delay(10)
+                    End If
                 Catch ex As Exception
                     If listenerRunning Then
-                        Me.Invoke(Sub()
-                                      Console.WriteLine("Listener Error: " & ex.Message)
-                                  End Sub)
+                        Console.WriteLine("Listener Error: " & ex.Message)
                     End If
                 End Try
             End While
         End Function)
     End Sub
+
+    Private Sub ProcessUdpMessage(response As String, senderIp As String)
+        Try
+            processResponse(response)
+        Catch ex As Exception
+            Console.WriteLine("Error processing UDP message: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Async Function HandleFragmentedResponse(initialResult As UdpReceiveResult, senderIp As String) As Task
+        Dim completeResponse As New StringBuilder()
+        completeResponse.Append(Encoding.ASCII.GetString(initialResult.Buffer))
+
+        Dim timeout As Integer = 1000
+        Dim sw As New Stopwatch()
+        sw.Start()
+
+        While sw.ElapsedMilliseconds < timeout
+            Try
+                If udp.Available > 0 Then
+                    Dim nextResult As UdpReceiveResult = Await udp.ReceiveAsync()
+                    If nextResult.RemoteEndPoint.Address.ToString() = senderIp Then
+                        Dim nextChunk As String = Encoding.ASCII.GetString(nextResult.Buffer)
+                        completeResponse.Append(nextChunk)
+                        If nextChunk.Contains("[-1]") OrElse nextChunk.TrimEnd().EndsWith("]") Then
+                            Exit While
+                        End If
+                    End If
+                Else
+                    Await Task.Delay(10)
+                End If
+            Catch ex As Exception
+                Exit While
+            End Try
+        End While
+
+        processResponse(completeResponse.ToString())
+    End Function
 
     Private Sub HandleBaseStationResponse(response As String)
         Try
