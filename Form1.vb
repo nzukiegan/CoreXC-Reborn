@@ -827,8 +827,8 @@ Public Class Form1
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
-        Dim latitude As Double = ""
-        Dim longitude As Double = ""
+        Dim latitude As Double = 0
+        Dim longitude As Double = 0
         Dim address As String = ""
         Dim lac As Integer = m.Groups("lac").Value
         Dim cid As Integer = getCellId(m.Groups("source").Value)
