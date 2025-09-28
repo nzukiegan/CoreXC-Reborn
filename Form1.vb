@@ -795,7 +795,7 @@ Public Class Form1
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
         Dim latitude As Double = 0
-        Dim longitude As Double = ""
+        Dim longitude As Double = 0
         Dim address As String = ""
         Dim lac As String = m.Groups("lac").Value.ToString()
         Dim cid As Integer = getCellId(m.Groups("source").Value)
