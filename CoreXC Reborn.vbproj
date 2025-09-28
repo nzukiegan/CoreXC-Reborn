@@ -330,6 +330,7 @@
       <LastGenOutput>Settings.Designer.vb</LastGenOutput>
     </None>
     <None Include="App.config" />
+    <None Include="tacdb.csv" />
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Connected Services\" />

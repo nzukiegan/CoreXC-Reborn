@@ -16,6 +16,8 @@ Imports GMap.NET.WindowsForms.Markers
 Imports Newtonsoft.Json.Linq
 Imports System.Collections.Concurrent
 Imports System.Net.Http
+Imports System.IO
+Imports Microsoft.VisualBasic.FileIO
 
 Public Class Form1
     Private cts As Threading.CancellationTokenSource
@@ -86,6 +88,9 @@ Public Class Form1
             {13, "192.168.1.103"},
             {14, "192.168.1.104"}
         }
+    Private Shared tacMap As Dictionary(Of String, String)
+    Private Shared loaded As Boolean = False
+    Private Shared ReadOnly locker As New Object()
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
@@ -126,6 +131,7 @@ Public Class Form1
 
             InitializeGMap()
             LoadTaskingList()
+            LoadTacDb()
             Task.Run(Sub() UpdateButtonColors())
             Await RunPeriodicUpdates()
             MessageBox.Show("Database and schema ready!", "Success")
@@ -134,6 +140,91 @@ Public Class Form1
             MessageBox.Show("Database setup failed: ")
         End Try
     End Sub
+
+    Public Shared Sub LoadTacDb(Optional csvPath As String = Nothing)
+        SyncLock locker
+            If loaded Then Return
+
+            If String.IsNullOrWhiteSpace(csvPath) Then
+                csvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tacdb.csv")
+            End If
+
+            If Not File.Exists(csvPath) Then
+                Throw New FileNotFoundException("TAC DB file not found.", csvPath)
+            End If
+
+            tacMap = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+
+            Using parser As New TextFieldParser(csvPath)
+                parser.TextFieldType = FieldType.Delimited
+                parser.SetDelimiters(","c)
+                parser.HasFieldsEnclosedInQuotes = True
+
+                While Not parser.EndOfData
+                    Try
+                        Dim fields As String() = parser.ReadFields()
+                        If fields Is Nothing OrElse fields.Length = 0 Then Continue While
+
+                        Dim rawTac As String = fields(0).Trim()
+
+                        If String.IsNullOrEmpty(rawTac) OrElse Not Char.IsDigit(rawTac(0)) Then
+                            Continue While
+                        End If
+
+                        Dim digitsOnlyTac As String = New String(rawTac.Where(Function(c) Char.IsDigit(c)).ToArray())
+
+                        If digitsOnlyTac.Length < 8 Then
+                            Continue While
+                        End If
+                        Dim tac As String = digitsOnlyTac.Substring(0, 8)
+
+                        Dim model As String = String.Empty
+                        If fields.Length >= 3 Then
+                            model = fields(2).Trim().Trim(""""c)
+                        End If
+                        If String.IsNullOrWhiteSpace(model) AndAlso fields.Length >= 2 Then
+                            model = fields(1).Trim().Trim(""""c)
+                        End If
+
+                        If String.IsNullOrWhiteSpace(model) Then
+                            Continue While
+                        End If
+
+                        If Not tacMap.ContainsKey(tac) Then
+                            tacMap(tac) = model
+                        End If
+                    Catch ex As MalformedLineException
+                        Continue While
+                    End Try
+                End While
+            End Using
+
+            loaded = True
+        End SyncLock
+    End Sub
+
+    Public Shared Function LookupModelByImei(imei As String) As String
+        If Not loaded Then
+            Try
+                LoadTacDb()
+            Catch ex As Exception
+                Return String.Empty
+            End Try
+        End If
+
+        If String.IsNullOrWhiteSpace(imei) Then Return String.Empty
+
+        Dim digitsOnly = New String(imei.Where(Function(c) Char.IsDigit(c)).ToArray())
+        If digitsOnly.Length < 8 Then Return String.Empty
+
+        Dim tac As String = digitsOnly.Substring(0, 8)
+        Dim model As String = Nothing
+        If tacMap IsNot Nothing AndAlso tacMap.TryGetValue(tac, model) Then
+            Return model
+        End If
+
+        Return String.Empty
+    End Function
 
     Private Async Sub SendTestLogEntries()
         Dim client As New UdpClient()
@@ -804,19 +895,7 @@ Public Class Form1
         GetCellLocation(mcc, mnc, lac, cid, latitude, longitude, address)
         Dim token = "NTuSzg8BAN-IWX8JYYbu"
 
-        Dim result = Await LookupImeiModelAsync(m.Groups("imei").Value, token)
-
-        Dim phoneModel As String
-        If Not String.IsNullOrWhiteSpace(result.Brand) AndAlso Not String.IsNullOrWhiteSpace(result.Model) Then
-            phoneModel = $"{result.Brand} {result.Model}"
-        ElseIf Not String.IsNullOrWhiteSpace(result.Model) Then
-            phoneModel = result.Model
-        ElseIf Not String.IsNullOrWhiteSpace(result.Brand) Then
-            phoneModel = result.Brand
-        Else
-            phoneModel = "Unknown"
-        End If
-
+        Dim model = LookupModelByImei(m.Groups("imei").Value)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
@@ -834,7 +913,7 @@ Public Class Form1
             {"guti", "-"},
             {"signal_Level", m.Groups("ulsig").Value},
             {"time_advance", m.Groups("ta").Value},
-            {"phone_model", phoneModel},
+            {"phone_model", model},
             {"event", m.Groups("event").Value},
             {"longitude", longitude},
             {"latitude", latitude}
@@ -1182,57 +1261,6 @@ Public Class Form1
             Debug.WriteLine("ApplyRowToGrid error: " & ex.Message)
         End Try
     End Sub
-
-    Public Async Function LookupImeiModelAsync(imei As String, token As String) As Task(Of (Brand As String, Model As String, ImageUrl As String))
-        If String.IsNullOrWhiteSpace(imei) Then
-            Return (Nothing, Nothing, Nothing)
-        End If
-
-        Dim baseUrl As String = "https://imeidb.xyz/api/imei/"
-        Dim url As String = $"{baseUrl}{Uri.EscapeDataString(imei)}?token={Uri.EscapeDataString(token)}&format=json"
-
-        Try
-            Using http As New HttpClient()
-                http.Timeout = TimeSpan.FromSeconds(15)
-
-                Dim respString As String = Await http.GetStringAsync(url)
-
-                Dim j As JObject = JObject.Parse(respString)
-                Dim successToken = j("success")
-                Dim success As Boolean = False
-                If successToken IsNot Nothing Then
-                    Boolean.TryParse(successToken.ToString(), success)
-                End If
-
-                If success Then
-                    Dim data = j("data")
-                    If data Is Nothing Then
-                        Return (Nothing, Nothing, Nothing)
-                    End If
-
-                    Dim brand As String = If(data("brand")?.ToString(), String.Empty)
-                    Dim model As String = If(data("model")?.ToString(), String.Empty)
-                    Dim imageUrl As String = If(data("device_image")?.ToString(), String.Empty)
-
-                    Return (brand, model, imageUrl)
-                Else
-                    Return (Nothing, Nothing, Nothing)
-                End If
-            End Using
-
-        Catch ex As HttpRequestException
-            Console.WriteLine($"HTTP error calling IMEI API: {ex.Message}")
-            Return (Nothing, Nothing, Nothing)
-
-        Catch ex As TaskCanceledException
-            Console.WriteLine("IMEI lookup timed out.")
-            Return (Nothing, Nothing, Nothing)
-
-        Catch ex As Exception
-            Console.WriteLine($"Unexpected error looking up IMEI: {ex.Message}")
-            Return (Nothing, Nothing, Nothing)
-        End Try
-    End Function
 
 
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As Double, ByRef lon As Double, ByRef add As String)
