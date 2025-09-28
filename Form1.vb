@@ -827,13 +827,13 @@ Public Class Form1
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
-        Dim latitude As Double = 0
-        Dim longitude As Double = 0
+        Dim latitude As String = ""
+        Dim longitude As String = ""
         Dim address As String = ""
-        Dim lac As Integer = m.Groups("lac").Value
+        Dim lac As String = m.Groups("lac").Value.ToString()
         Dim cid As Integer = getCellId(m.Groups("source").Value)
 
-        GetCellLocation(mcc, mnc, 0, lac, latitude, longitude, address)
+        GetCellLocation(mcc, mnc, lac, cid, latitude, longitude, address)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
