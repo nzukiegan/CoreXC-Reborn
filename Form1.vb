@@ -2172,6 +2172,7 @@ Public Class Form1
                        imsi,
                        imei,
                        guti,
+                       tmsi,
                        signal_level,
                        time_advance,
                        longitude,
@@ -2237,6 +2238,7 @@ Public Class Form1
                         Me.Column53.DataPropertyName = "mnc"
                         Me.Column47.DataPropertyName = "imsi"
                         Me.Column48.DataPropertyName = "imei"
+                        Me.Column49.DataPropertyName = "tmsi"
                         Me.Column50.DataPropertyName = "guti"
                         Me.Column54.DataPropertyName = "count"
                         Me.Column55.DataPropertyName = "signal_level"
