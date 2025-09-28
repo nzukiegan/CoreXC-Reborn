@@ -1306,7 +1306,7 @@ Public Class Form1
             End If
 
         Catch ex As Exception
-            Console.WriteLine("Error while processing response: " & ex.Message)
+            Console.WriteLine("Error while processing response: " & ex.StackTrace)
         End Try
     End Sub
 
