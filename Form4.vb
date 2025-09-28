@@ -31,7 +31,6 @@ Public Class Form4
                     schemaCmd.ExecuteNonQuery()
                 End Using
 
-                ' Create scan_results table
                 Dim scanResultsSql As String = $"
                     IF NOT EXISTS (
                         SELECT * FROM sys.tables 
@@ -95,6 +94,38 @@ Public Class Form4
                         )
                     END"
                 Using cmd As New SqlCommand(whitelistSql, conn)
+                    cmd.ExecuteNonQuery()
+                End Using
+
+                Dim targetsSql As String = $"
+                    IF NOT EXISTS (
+                        SELECT * FROM sys.tables 
+                        WHERE name = 'targets' AND schema_id = SCHEMA_ID('{schemaName}')
+                    )
+                    BEGIN
+                        CREATE TABLE [{schemaName}].[targets] (
+                            no BIGINT PRIMARY KEY IDENTITY(1,1),
+                            date_event DATETIME2 NOT NULL,
+                            source NVARCHAR(100),
+                            rat NVARCHAR(50),
+                            band NVARCHAR(50),
+                            provider_name NVARCHAR(100),
+                            mcc INT,
+                            mnc INT,
+                            target_name NVARCHAR(150),
+                            imsi NVARCHAR(64),
+                            imei NVARCHAR(64),
+                            ul_channel INT,
+                            dl_channel INT,
+                            ul_freq FLOAT,
+                            dl_freq FLOAT,
+                            signal_level FLOAT,
+                            phone_model NVARCHAR(150),
+                            longitude FLOAT,
+                            latitude FLOAT
+                        )
+                    END"
+                Using cmd As New SqlCommand(targetsSql, conn)
                     cmd.ExecuteNonQuery()
                 End Using
 

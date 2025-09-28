@@ -888,6 +888,7 @@ Public Class Form1
         End If
 
         Dim imsi As String = m.Groups("imsi").Value
+        Dim imei As String = m.Groups("imei").Value
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
@@ -898,25 +899,26 @@ Public Class Form1
         Dim cid As Integer = getCellId(m.Groups("source").Value)
 
         GetCellLocation(mcc, mnc, lac, cid, latitude, longitude, address)
-        Dim token = "NTuSzg8BAN-IWX8JYYbu"
 
         Dim model = LookupModelByImei(m.Groups("imei").Value)
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
-
+        Dim dateEvent As String = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+        Dim source As String = m.Groups("source").Value.ToString()
+        Dim signalLevel As Integer = Convert.ToInt32(m.Groups("ulsig").Value)
         Dim row As New Dictionary(Of String, Object) From {
-            {"date_event", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")},
+            {"date_event", dateEvent},
             {"location_name", address},
-            {"source", m.Groups("source").Value},
+            {"source", source},
             {"provider_name", providerName},
             {"mcc", mcc},
             {"mnc", mnc},
             {"imsi", imsi},
-            {"imei", m.Groups("imei").Value},
+            {"imei", imei},
             {"tmsi", m.Groups("tmsi").Value},
             {"guti", "-"},
-            {"signal_Level", m.Groups("ulsig").Value},
+            {"signal_Level", signalLevel},
             {"time_advance", m.Groups("ta").Value},
             {"phone_model", model},
             {"event", m.Groups("event").Value},
@@ -926,7 +928,184 @@ Public Class Form1
 
         InsertScanResult(row)
         UpdateScanResultDv(row)
+        Dim targetName As String = Await CheckBlacklist(selectedSchema, imsi, imei)
+        If Not String.IsNullOrEmpty(targetName) Then
+            'target is found
+            Dim channelNum As Integer = 0
+            Dim match As Match = Regex.Match(source, "CH(\d+)", RegexOptions.IgnoreCase)
+            If match.Success Then
+                channelNum = Convert.ToInt32(match.Groups(1).Value)
+            End If
+            Dim rat As String = ""
+            Dim band As Integer = 0
+            Dim earfcn As Integer = 0
+
+            Using conn As New SqlConnection(connectionString)
+                Await conn.OpenAsync()
+
+                Dim sql As String = "SELECT TOP 1 is_gsm, is_wcdma, is_lte, earfcn, band 
+                         FROM dbo.base_stations 
+                         WHERE channel_number = @ch"
+
+                Using cmd As New SqlCommand(sql, conn)
+                    cmd.Parameters.AddWithValue("@ch", channelNum)
+
+                    Using reader = Await cmd.ExecuteReaderAsync()
+                        If Await reader.ReadAsync() Then
+                            Dim isGsm As Boolean = Convert.ToBoolean(reader("is_gsm"))
+                            Dim isWcdma As Boolean = Convert.ToBoolean(reader("is_wcdma"))
+                            Dim isLte As Boolean = Convert.ToBoolean(reader("is_lte"))
+                            earfcn = If(IsDBNull(reader("earfcn")), 0, Convert.ToInt32(reader("earfcn")))
+                            band = If(IsDBNull(reader("band")), 0, Convert.ToInt32(reader("band")))
+
+                            If source.EndsWith("9") OrElse source.EndsWith("10") Then
+                                rat = "LTE-TDD"
+                            ElseIf isGsm Then
+                                rat = "GSM"
+                            ElseIf isWcdma Then
+                                rat = "WCDMA"
+                            ElseIf isLte Then
+                                rat = "LTE-FDD"
+                            End If
+                        End If
+                    End Using
+                End Using
+            End Using
+
+            Dim ulChannel As Integer = GetUlChannelFromDl(band, earfcn)
+            Dim dlChannel As Integer = earfcn
+            Dim freqs = ComputeDlUlFrequency(band, earfcn)
+            Dim ulFreq As Double = freqs.ulFreq
+            Dim dlFreq As Double = freqs.dlFreq
+
+            Await InsertTargetAsync(selectedSchema, dateEvent, source, rat, band, providerName, mcc, mnc, targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
+            AddTargetRowToGrid(dateEvent, source, rat, band, providerName, Convert.ToInt32(mcc), Convert.ToInt32(mnc), targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
+        End If
     End Sub
+
+    Private Sub AddTargetRowToGrid(dateEvent As DateTime,
+                               source As String,
+                               rat As String,
+                               band As Integer,
+                               providerName As String,
+                               mcc As Integer,
+                               mnc As Integer,
+                               targetName As String,
+                               imsi As String,
+                               imei As String,
+                               ulChannel As Integer,
+                               dlChannel As Integer,
+                               ulFreq As Double,
+                               dlFreq As Double,
+                               signalLevel As Double,
+                               phoneModel As String,
+                               longitude As Double,
+                               latitude As Double)
+
+        Dim rowIndex As Integer = DataGridView1.Rows.Add()
+
+        DataGridView1.Rows(rowIndex).Cells("Column79").Value = rowIndex + 1
+        DataGridView1.Rows(rowIndex).Cells("Column80").Value = dateEvent
+        DataGridView1.Rows(rowIndex).Cells("Column87").Value = source
+        DataGridView1.Rows(rowIndex).Cells("Column88").Value = rat
+        DataGridView1.Rows(rowIndex).Cells("Column89").Value = band
+        DataGridView1.Rows(rowIndex).Cells("Column81").Value = providerName
+        DataGridView1.Rows(rowIndex).Cells("Column82").Value = mcc
+        DataGridView1.Rows(rowIndex).Cells("Column83").Value = mnc
+        DataGridView1.Rows(rowIndex).Cells("Column84").Value = targetName
+        DataGridView1.Rows(rowIndex).Cells("Column85").Value = imsi
+        DataGridView1.Rows(rowIndex).Cells("Column86").Value = imei
+        DataGridView1.Rows(rowIndex).Cells("Column90").Value = ulChannel
+        DataGridView1.Rows(rowIndex).Cells("Column91").Value = dlChannel
+        DataGridView1.Rows(rowIndex).Cells("Column92").Value = ulFreq
+        DataGridView1.Rows(rowIndex).Cells("Column93").Value = dlFreq
+        DataGridView1.Rows(rowIndex).Cells("Column94").Value = signalLevel
+        DataGridView1.Rows(rowIndex).Cells("Column95").Value = phoneModel
+        DataGridView1.Rows(rowIndex).Cells("Column96").Value = longitude
+        DataGridView1.Rows(rowIndex).Cells("Column97").Value = latitude
+
+    End Sub
+
+
+    Private Async Function InsertTargetAsync(schemaName As String,
+                                         dateEvent As DateTime,
+                                         source As String,
+                                         rat As String,
+                                         band As Integer,
+                                         providerName As String,
+                                         mcc As Integer,
+                                         mnc As Integer,
+                                         targetName As String,
+                                         imsi As String,
+                                         imei As String,
+                                         ulChannel As Integer,
+                                         dlChannel As Integer,
+                                         ulfreq As Integer,
+                                         dlfreq As Integer,
+                                         signalLevel As Double,
+                                         phoneModel As String,
+                                         longitude As Double,
+                                         latitude As Double) As Task
+
+        Dim insertSql As String = $"
+        INSERT INTO [{schemaName}].[targets]
+        (date_event, source, rat, band, provider_name, mcc, mnc, target_name, imsi, imei,
+         ul_channel, dl_channel, ul_freq, dl_freq, signal_level, phone_model, longitude, latitude)
+        VALUES
+        (@date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @target_name, @imsi, @imei,
+         @ul_channel, @dl_channel, @ul_freq, @dl_freq, @signal_level, @phone_model, @longitude, @latitude)
+    "
+
+        Using conn As New SqlConnection(connectionString)
+            Await conn.OpenAsync()
+
+            Using cmdInsert As New SqlCommand(insertSql, conn)
+                cmdInsert.Parameters.AddWithValue("@date_event", dateEvent)
+                cmdInsert.Parameters.AddWithValue("@source", source)
+                cmdInsert.Parameters.AddWithValue("@rat", rat)
+                cmdInsert.Parameters.AddWithValue("@band", band)
+                cmdInsert.Parameters.AddWithValue("@provider_name", providerName)
+                cmdInsert.Parameters.AddWithValue("@mcc", mcc)
+                cmdInsert.Parameters.AddWithValue("@mnc", mnc)
+                cmdInsert.Parameters.AddWithValue("@target_name", targetName)
+                cmdInsert.Parameters.AddWithValue("@imsi", imsi)
+                cmdInsert.Parameters.AddWithValue("@imei", imei)
+                cmdInsert.Parameters.AddWithValue("@ul_channel", ulChannel)
+                cmdInsert.Parameters.AddWithValue("@dl_channel", dlChannel)
+                cmdInsert.Parameters.AddWithValue("@ul_freq", ulfreq)
+                cmdInsert.Parameters.AddWithValue("@dl_freq", dlfreq)
+                cmdInsert.Parameters.AddWithValue("@signal_level", signalLevel)
+                cmdInsert.Parameters.AddWithValue("@phone_model", phoneModel)
+                cmdInsert.Parameters.AddWithValue("@longitude", longitude)
+                cmdInsert.Parameters.AddWithValue("@latitude", latitude)
+
+                Await cmdInsert.ExecuteNonQueryAsync()
+            End Using
+        End Using
+    End Function
+
+
+    Private Async Function CheckBlacklist(schemaName As String, imsi As String, imei As String) As Task(Of String)
+        Dim query As String =
+        $"SELECT TOP 1 name FROM [{schemaName}].[blacklist] WHERE imsi = @imsi AND imei = @imei"
+
+        Using conn As New SqlConnection("YourConnectionStringHere"),
+          cmd As New SqlCommand(query, conn)
+
+            cmd.Parameters.AddWithValue("@imsi", imsi)
+            cmd.Parameters.AddWithValue("@imei", imei)
+
+            Await conn.OpenAsync()
+            Dim result As Object = Await cmd.ExecuteScalarAsync()
+
+            If result IsNot Nothing AndAlso result IsNot DBNull.Value Then
+                Return result.ToString()
+            End If
+        End Using
+
+        Return Nothing
+    End Function
+
 
     Private Function getCellId(source As String) As Integer
         Dim channelNumber As Integer = 0
@@ -1958,7 +2137,6 @@ Public Class Form1
     Private Sub TabPage3_Enter(sender As Object, e As EventArgs) Handles TabPage3.Enter
         LoadScanResults()
         LoadChartData()
-        SendTestLogEntries()
     End Sub
 
     Private Sub Button34_Click(sender As Object, e As EventArgs) Handles Button34.Click
