@@ -208,23 +208,28 @@ Public Class Form1
             Try
                 LoadTacDb()
             Catch ex As Exception
-                Return String.Empty
+                Return "Unknown"
             End Try
         End If
 
-        If String.IsNullOrWhiteSpace(imei) Then Return String.Empty
+        If String.IsNullOrWhiteSpace(imei) Then Return "Unknown"
 
         Dim digitsOnly = New String(imei.Where(Function(c) Char.IsDigit(c)).ToArray())
-        If digitsOnly.Length < 8 Then Return String.Empty
+        If digitsOnly.Length < 8 Then Return "Unknown"
 
         Dim tac As String = digitsOnly.Substring(0, 8)
         Dim model As String = Nothing
+
         If tacMap IsNot Nothing AndAlso tacMap.TryGetValue(tac, model) Then
+            If String.IsNullOrWhiteSpace(model) Then
+                Return "Unknown"
+            End If
             Return model
         End If
 
-        Return String.Empty
+        Return "Unknown"
     End Function
+
 
     Private Async Sub SendTestLogEntries()
         Dim client As New UdpClient()
