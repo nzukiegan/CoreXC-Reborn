@@ -147,7 +147,7 @@ Public Class Form1
         For i As Integer = 1 To 20
             Dim channelNum As Integer = rnd.Next(1, 15) ' CH1..CH14
 
-            Dim imsi As String = "31015" & rnd.Next(1000000, 9999999).ToString()
+            Dim imsi As String = "51011" & rnd.Next(1000000, 9999999).ToString()
             Dim imei As String = "3567" & rnd.Next(100000000, 999999999).ToString() ' ensure long numeric IMEI-like string
             Dim tmsiHex As String = rnd.Next(100000, 999999).ToString("X")
 
@@ -619,43 +619,12 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessUdpMessage(response As String, senderIp As String)
-        Console.WriteLine(response)
         Try
             processResponse(response)
         Catch ex As Exception
             Console.WriteLine("Error processing UDP message: " & ex.Message)
         End Try
     End Sub
-
-    Private Async Function HandleFragmentedResponse(initialResult As UdpReceiveResult, senderIp As String) As Task
-        Dim completeResponse As New StringBuilder()
-        completeResponse.Append(Encoding.ASCII.GetString(initialResult.Buffer))
-
-        Dim timeout As Integer = 1000
-        Dim sw As New Stopwatch()
-        sw.Start()
-
-        While sw.ElapsedMilliseconds < timeout
-            Try
-                If udp.Available > 0 Then
-                    Dim nextResult As UdpReceiveResult = Await udp.ReceiveAsync()
-                    If nextResult.RemoteEndPoint.Address.ToString() = senderIp Then
-                        Dim nextChunk As String = Encoding.ASCII.GetString(nextResult.Buffer)
-                        completeResponse.Append(nextChunk)
-                        If nextChunk.Contains("[-1]") OrElse nextChunk.TrimEnd().EndsWith("]") Then
-                            Exit While
-                        End If
-                    End If
-                Else
-                    Await Task.Delay(10)
-                End If
-            Catch ex As Exception
-                Exit While
-            End Try
-        End While
-
-        processResponse(completeResponse.ToString())
-    End Function
 
     Private Sub HandleBaseStationResponse(response As String)
         Try
@@ -815,8 +784,6 @@ Public Class Form1
         "tmsi\[(?<tmsi>[0-9A-Fa-f]+)\]\s*" &
         "lac\[(?<lac>\d+)\]\s+" &
         "dlrscp\[(?<rscp>\d+)\]\s*$"
-
-        Console.WriteLine(logLine)
 
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
@@ -1221,7 +1188,7 @@ Public Class Form1
                 client.Headers(HttpRequestHeader.ContentType) = "application/json"
                 Dim response As String = client.UploadString(url, "POST", payload)
                 Dim json As JObject = JObject.Parse(response)
-
+                Console.WriteLine(json.ToString())
                 If json("status") IsNot Nothing AndAlso json("status").ToString().ToLower() = "ok" Then
                     Dim tmpLat As Double
                     Dim tmpLon As Double
