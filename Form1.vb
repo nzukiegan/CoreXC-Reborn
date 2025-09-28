@@ -1995,9 +1995,9 @@ Public Class Form1
 
         Dim row As DataGridViewRow = DataGridView4.Rows(e.RowIndex)
 
-        If row.Cells("longitude").Value IsNot Nothing AndAlso row.Cells("latitude").Value IsNot Nothing Then
-            Double.TryParse(row.Cells("longitude").Value.ToString(), selectedLongitude)
-            Double.TryParse(row.Cells("latitude").Value.ToString(), selectedLatitude)
+        If row.Cells("Column59").Value IsNot Nothing AndAlso row.Cells("Column60").Value IsNot Nothing Then
+            Double.TryParse(row.Cells("Column59").Value.ToString(), selectedLongitude)
+            Double.TryParse(row.Cells("Column60").Value.ToString(), selectedLatitude)
         End If
     End Sub
     Private Sub LoadChartData()
