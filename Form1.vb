@@ -15,6 +15,7 @@ Imports GMap.NET.WindowsForms
 Imports GMap.NET.WindowsForms.Markers
 Imports Newtonsoft.Json.Linq
 Imports System.Collections.Concurrent
+Imports System.Net.Http
 
 Public Class Form1
     Private cts As Threading.CancellationTokenSource
@@ -771,7 +772,7 @@ Public Class Form1
         End If
     End Function
 
-    Private Sub ProcessLogEntry(logLine As String)
+    Private Async Sub ProcessLogEntry(logLine As String)
         Dim pattern As String =
         "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+" &
         "time\[(?<time>\d+)\]\s+" &
@@ -801,6 +802,21 @@ Public Class Form1
         Dim cid As Integer = getCellId(m.Groups("source").Value)
 
         GetCellLocation(mcc, mnc, lac, cid, latitude, longitude, address)
+        Dim token = "NTuSzg8BAN-IWX8JYYbu"
+
+        Dim result = Await LookupImeiModelAsync(m.Groups("imei").Value, token)
+
+        Dim phoneModel As String
+        If Not String.IsNullOrWhiteSpace(result.Brand) AndAlso Not String.IsNullOrWhiteSpace(result.Model) Then
+            phoneModel = $"{result.Brand} {result.Model}"
+        ElseIf Not String.IsNullOrWhiteSpace(result.Model) Then
+            phoneModel = result.Model
+        ElseIf Not String.IsNullOrWhiteSpace(result.Brand) Then
+            phoneModel = result.Brand
+        Else
+            phoneModel = "Unknown"
+        End If
+
 
         Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
@@ -814,10 +830,11 @@ Public Class Form1
             {"mnc", mnc},
             {"imsi", imsi},
             {"imei", m.Groups("imei").Value},
+            {"tmsi", m.Groups("tmsi").Value},
             {"guti", "-"},
             {"signal_Level", m.Groups("ulsig").Value},
             {"time_advance", m.Groups("ta").Value},
-            {"phone_model", "N/A"},
+            {"phone_model", phoneModel},
             {"event", m.Groups("event").Value},
             {"longitude", longitude},
             {"latitude", latitude}
@@ -891,6 +908,7 @@ Public Class Form1
                     mnc = @mnc,
                     imei = @imei,
                     guti = @guti,
+                    tmsi = @tmsi,
                     signal_level = @signal_level,
                     time_advance = @time_advance,
                     phone_model = @phone_model,
@@ -1164,6 +1182,57 @@ Public Class Form1
             Debug.WriteLine("ApplyRowToGrid error: " & ex.Message)
         End Try
     End Sub
+
+    Public Async Function LookupImeiModelAsync(imei As String, token As String) As Task(Of (Brand As String, Model As String, ImageUrl As String))
+        If String.IsNullOrWhiteSpace(imei) Then
+            Return (Nothing, Nothing, Nothing)
+        End If
+
+        Dim baseUrl As String = "https://imeidb.xyz/api/imei/"
+        Dim url As String = $"{baseUrl}{Uri.EscapeDataString(imei)}?token={Uri.EscapeDataString(token)}&format=json"
+
+        Try
+            Using http As New HttpClient()
+                http.Timeout = TimeSpan.FromSeconds(15)
+
+                Dim respString As String = Await http.GetStringAsync(url)
+
+                Dim j As JObject = JObject.Parse(respString)
+                Dim successToken = j("success")
+                Dim success As Boolean = False
+                If successToken IsNot Nothing Then
+                    Boolean.TryParse(successToken.ToString(), success)
+                End If
+
+                If success Then
+                    Dim data = j("data")
+                    If data Is Nothing Then
+                        Return (Nothing, Nothing, Nothing)
+                    End If
+
+                    Dim brand As String = If(data("brand")?.ToString(), String.Empty)
+                    Dim model As String = If(data("model")?.ToString(), String.Empty)
+                    Dim imageUrl As String = If(data("device_image")?.ToString(), String.Empty)
+
+                    Return (brand, model, imageUrl)
+                Else
+                    Return (Nothing, Nothing, Nothing)
+                End If
+            End Using
+
+        Catch ex As HttpRequestException
+            Console.WriteLine($"HTTP error calling IMEI API: {ex.Message}")
+            Return (Nothing, Nothing, Nothing)
+
+        Catch ex As TaskCanceledException
+            Console.WriteLine("IMEI lookup timed out.")
+            Return (Nothing, Nothing, Nothing)
+
+        Catch ex As Exception
+            Console.WriteLine($"Unexpected error looking up IMEI: {ex.Message}")
+            Return (Nothing, Nothing, Nothing)
+        End Try
+    End Function
 
 
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As Double, ByRef lon As Double, ByRef add As String)

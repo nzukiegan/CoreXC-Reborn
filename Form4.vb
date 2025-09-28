@@ -48,6 +48,7 @@ Public Class Form4
                             mnc INT,
                             imsi NVARCHAR(64),
                             imei NVARCHAR(64),
+                            tmsi NVARCHAR(64),
                             guti NVARCHAR(64),
                             signal_level FLOAT,
                             time_advance INT,
