@@ -827,8 +827,8 @@ Public Class Form1
         Dim mcc As String = If(imsi.Length >= 3, imsi.Substring(0, 3), "")
         Dim mnc As String = If(imsi.Length >= 5, imsi.Substring(3, 2), "")
 
-        Dim latitude As String = ""
-        Dim longitude As String = ""
+        Dim latitude As Double = 0
+        Dim longitude As Double = ""
         Dim address As String = ""
         Dim lac As String = m.Groups("lac").Value.ToString()
         Dim cid As Integer = getCellId(m.Groups("source").Value)
@@ -1199,7 +1199,7 @@ Public Class Form1
     End Sub
 
 
-    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As String, ByRef lon As String, ByRef add As String)
+    Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As Double, ByRef lon As Double, ByRef add As String)
         Dim apiKey As String = "pk.3b202963e54283dd02838406ae4df7be"
         Dim url As String = "https://us1.unwiredlabs.com/v2/process"
 
@@ -1220,18 +1220,31 @@ Public Class Form1
             Using client As New WebClient()
                 client.Headers(HttpRequestHeader.ContentType) = "application/json"
                 Dim response As String = client.UploadString(url, "POST", payload)
-
                 Dim json As JObject = JObject.Parse(response)
+
                 If json("status") IsNot Nothing AndAlso json("status").ToString().ToLower() = "ok" Then
-                    lat = json("lat").ToString()
-                    lon = json("lon").ToString()
+                    Dim tmpLat As Double
+                    Dim tmpLon As Double
+
+                    If Double.TryParse(json("lat").ToString(), tmpLat) Then
+                        lat = tmpLat
+                    Else
+                        lat = 0
+                    End If
+
+                    If Double.TryParse(json("lon").ToString(), tmpLon) Then
+                        lon = tmpLon
+                    Else
+                        lon = 0
+                    End If
+
                     add = json("address").ToString()
                 Else
-                    lat = ""
-                    lon = ""
+                    lat = 0
+                    lon = 0
+                    add = ""
                 End If
             End Using
-
         Catch ex As Exception
             lat = ""
             lon = ""
