@@ -672,26 +672,29 @@ Public Class Form1
         If listenerRunning Then Return
 
         udp = New UdpClient(New IPEndPoint(IPAddress.Any, 9001))
-        udp.Client.ReceiveBufferSize = 1024 * 1024
-        udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 1024 * 1024)
+        udp.Client.ReceiveBufferSize = 4 * 1024 * 1024
+        udp.EnableBroadcast = True
 
         packetQueue = New ConcurrentQueue(Of Tuple(Of Byte(), String))()
         workerTasks = New List(Of Task)()
-
         listenerRunning = True
 
-        listenerTask = Task.Run(Async Function()
-                                    While listenerRunning
-                                        Try
-                                            Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
-                                            packetQueue.Enqueue(Tuple.Create(result.Buffer, result.RemoteEndPoint.Address.ToString()))
-                                        Catch ex As Exception
-                                            If listenerRunning Then
-                                                Console.WriteLine("Listener Error: " & ex.Message)
-                                            End If
-                                        End Try
-                                    End While
-                                End Function)
+        Dim receiverCount As Integer = Math.Max(2, Environment.ProcessorCount \ 2)
+        For i As Integer = 1 To receiverCount
+            Dim listener = Task.Run(Async Function()
+                                        While listenerRunning
+                                            Try
+                                                Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
+                                                packetQueue.Enqueue(Tuple.Create(result.Buffer, result.RemoteEndPoint.Address.ToString()))
+                                            Catch ex As Exception
+                                                If listenerRunning Then
+                                                    Console.WriteLine("Listener Error: " & ex.Message)
+                                                End If
+                                            End Try
+                                        End While
+                                    End Function)
+            workerTasks.Add(listener)
+        Next
 
         Dim workerCount As Integer = Environment.ProcessorCount
         For i As Integer = 1 To workerCount
@@ -699,6 +702,7 @@ Public Class Form1
             workerTasks.Add(worker)
         Next
     End Sub
+
 
     Private Async Sub WorkerLoop()
         While listenerRunning
