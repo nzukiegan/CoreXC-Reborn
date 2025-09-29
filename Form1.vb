@@ -775,6 +775,7 @@ Public Class Form1
         If Integer.TryParse(digits, v) Then Return v
         Return 0
     End Function
+    End Function
 
     Private Sub SaveBaseStationToDb(channelNumber As Integer, responseXml As String)
         Try
@@ -1598,8 +1599,7 @@ Public Class Form1
     Private Async Function RunPeriodicUpdates() As Task
         While True
             Try
-                Await Task.Delay(120000)
-                Await dbInitializer.GetBaseStationsFromBackend(udp)
+                Await Task.Delay(30000)
                 LoadBaseStationData()
                 LoadBaseStationData1()
 
