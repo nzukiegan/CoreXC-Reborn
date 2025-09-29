@@ -1090,7 +1090,7 @@ Public Class Form1
         Dim query As String =
         $"SELECT TOP 1 name FROM [{schemaName}].[blacklist] WHERE imsi = @imsi AND imei = @imei"
 
-        Using conn As New SqlConnection("YourConnectionStringHere"),
+        Using conn As New SqlConnection(connectionString),
           cmd As New SqlCommand(query, conn)
 
             cmd.Parameters.AddWithValue("@imsi", imsi)
