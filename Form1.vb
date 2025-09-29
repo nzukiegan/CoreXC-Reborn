@@ -91,6 +91,7 @@ Public Class Form1
     Private Shared tacMap As Dictionary(Of String, String)
     Private Shared loaded As Boolean = False
     Private Shared ReadOnly locker As New Object()
+    Private firstLoadScanResults As Boolean = False
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
@@ -981,6 +982,7 @@ Public Class Form1
 
             Await InsertTargetAsync(selectedSchema, dateEvent, source, rat, band, providerName, mcc, mnc, targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
             AddTargetRowToGrid(dateEvent, source, rat, band, providerName, Convert.ToInt32(mcc), Convert.ToInt32(mnc), targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
+            LoadChartData()
         End If
     End Sub
 
@@ -2139,12 +2141,14 @@ Public Class Form1
     End Sub
 
     Private Sub TabPage3_Enter(sender As Object, e As EventArgs) Handles TabPage3.Enter
-        LoadScanResults()
-        LoadChartData()
+        If firstLoadScanResults Then
+            LoadScanResults()
+            LoadChartData()
+            firstLoadScanResults = False
+        End If
     End Sub
 
     Private Sub Button34_Click(sender As Object, e As EventArgs) Handles Button34.Click
-        DataGridView4.DataSource = Nothing
         DataGridView4.Rows.Clear()
     End Sub
 
@@ -2286,10 +2290,10 @@ Public Class Form1
             Double.TryParse(row.Cells("Column60").Value.ToString(), selectedLatitude)
         End If
     End Sub
-    Private Sub LoadChartData()
+    Private Async Sub LoadChartData()
         Try
             Using conn As New SqlConnection(connectionString)
-                conn.Open()
+                Await conn.OpenAsync()
 
                 Dim tableName As String = "[" & selectedSchema & "].[scan_results]"
 
@@ -2301,15 +2305,28 @@ Public Class Form1
                 ORDER BY channel"
 
                 Using cmd As New SqlCommand(query, conn)
-                    Using reader As SqlDataReader = cmd.ExecuteReader()
-                        Chart1.Series("Series1").Points.Clear()
+                    Using reader As SqlDataReader = Await cmd.ExecuteReaderAsync()
+                        Dim results As New List(Of KeyValuePair(Of String, Integer))
 
-                        While reader.Read()
+                        While Await reader.ReadAsync()
                             Dim channel As String = reader("channel").ToString()
                             Dim scanCount As Integer = Convert.ToInt32(reader("scan_count"))
-
-                            Chart1.Series("Series1").Points.AddXY(channel, scanCount)
+                            results.Add(New KeyValuePair(Of String, Integer)(channel, scanCount))
                         End While
+
+                        If Chart1.InvokeRequired Then
+                            Chart1.Invoke(Sub()
+                                              Chart1.Series("Series1").Points.Clear()
+                                              For Each kvp In results
+                                                  Chart1.Series("Series1").Points.AddXY(kvp.Key, kvp.Value)
+                                              Next
+                                          End Sub)
+                        Else
+                            Chart1.Series("Series1").Points.Clear()
+                            For Each kvp In results
+                                Chart1.Series("Series1").Points.AddXY(kvp.Key, kvp.Value)
+                            Next
+                        End If
                     End Using
                 End Using
             End Using
@@ -2317,7 +2334,6 @@ Public Class Form1
             MessageBox.Show("Error loading chart data: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
-
 
     Private Sub LoadWhitelistData()
         Try
