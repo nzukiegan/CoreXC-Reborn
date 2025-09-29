@@ -1531,7 +1531,8 @@ Public Class Form1
 
     Private Sub processResponse(response As String)
         Try
-            If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
+            If response.IndexOf("Gsm", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                Console.WriteLine(response)
                 ProcessGsmData(response)
                 Return
             End If
@@ -1660,6 +1661,7 @@ Public Class Form1
     End Sub
 
     Private Sub ProcessGsmData(line As String)
+
         SafeUpdateLabel(line)
         Try
             Dim plmnMatch As Match = Regex.Match(line, "plmn\[(\d+)\]")
