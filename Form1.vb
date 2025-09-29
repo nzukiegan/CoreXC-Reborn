@@ -874,19 +874,18 @@ Public Class Form1
     End Function
 
     Private Async Sub ProcessLogEntry(logLine As String)
-        Console.WriteLine("Processing log line: " & logLine)
         Dim pattern As String =
         "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s*" &
-        "(?:time\[(?<time>\d+)\]\s*)?" &
-        "(?:taType\[(?<event>[^\]]*)\]\s*)?" &
-        "(?:imsi\[(?<imsi>\d*)\]\s*)?" &
-        "(?:imei\[(?<imei>[^\]]*)\]\s*)?" &
-        "(?:ulSig\[(?<ulsig>-?\d+)\]\s*)?" &
-        "(?:ulTa\[(?<ta>\d+)\]\s*)?" &
-        "(?:bl_indi\[(?<count>\d+)\]\s*)?" &
-        "(?:tmsi\[(?<tmsi>[0-9A-Fa-f]*)\]\s*)?" &
-        "(?:lac\[(?<lac>\d+)\]\s*)?" &
-        "(?:dlrscp(?:\[(?<rscp>-?\d+)\])?)?\s*$"
+        "(?:time\[(?<time>\d+)\])?\s*" &
+        "(?:taType\[(?<event>[^\]]*)\])?\s*" &
+        "(?:imsi\[(?<imsi>\d*)\])?\s*" &
+        "(?:imei\[(?<imei>[^\]]*)\])?\s*" &
+        "(?:ulSig\[(?<ulsig>-?\d+)\])?\s*" &
+        "(?:ulTa\[(?<ta>\d+)\])?\s*" &
+        "(?:bl_indi\[(?<count>\d+)\])?\s*" &
+        "(?:tmsi\[(?<tmsi>[0-9A-Fa-f]*)\])?\s*" &
+        "(?:lac\[(?<lac>\d+)\])?\s*" &
+        "(?:dlrscp\[(?<rscp>-?\d+)\])?\s*$"
 
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
