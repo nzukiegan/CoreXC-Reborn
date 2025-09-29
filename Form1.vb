@@ -778,7 +778,6 @@ Public Class Form1
         If Integer.TryParse(digits, v) Then Return v
         Return 0
     End Function
-    End Function
 
     Private Sub SaveBaseStationToDb(channelNumber As Integer, responseXml As String)
         Try
