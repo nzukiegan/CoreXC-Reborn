@@ -2168,6 +2168,8 @@ Public Class Form1
             selectedSchema = SelectedSchema1
             LoadBlacklistData()
             LoadWhitelistData()
+        ElseIf selectedSchema Is Nothing Then
+            MessageBox.Show("Please select a database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
     End Sub
 
