@@ -869,6 +869,7 @@ Public Class Form1
     End Function
 
     Private Async Sub ProcessLogEntry(logLine As String)
+        Console.WriteLine("Processing log line: " & logLine)
         Dim pattern As String =
         "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s+" &
         "time\[(?<time>\d+)\]\s+" &
@@ -1558,11 +1559,7 @@ Public Class Form1
                 Return
             End If
 
-            If response.IndexOf("StartCell", StringComparison.OrdinalIgnoreCase) >= 0 Then
-                If response.Trim().Equals("StartCell RESULT[SUCCESS] INFO[ ]", StringComparison.OrdinalIgnoreCase) Then
-                    Return
-                End If
-
+            If response.IndexOf("OneUeInfoIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 ProcessLogEntry(response)
                 Return
             End If
