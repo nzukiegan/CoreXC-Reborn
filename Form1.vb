@@ -2164,7 +2164,7 @@ Public Class Form1
     End Sub
 
     Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
-        If selectedSchema IsNot Nothing Then
+        If SelectedSchema1 IsNot Nothing Then
             selectedSchema = SelectedSchema1
             LoadBlacklistData()
             LoadWhitelistData()
