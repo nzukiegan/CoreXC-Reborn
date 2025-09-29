@@ -2149,7 +2149,10 @@ Public Class Form1
     End Sub
 
     Private Sub Button34_Click(sender As Object, e As EventArgs) Handles Button34.Click
-        DataGridView4.Rows.Clear()
+        Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
+        If dt IsNot Nothing Then
+            dt.Rows.Clear()
+        End If
     End Sub
 
     Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
