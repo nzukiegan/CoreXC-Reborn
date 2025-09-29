@@ -91,7 +91,7 @@ Public Class Form1
     Private Shared tacMap As Dictionary(Of String, String)
     Private Shared loaded As Boolean = False
     Private Shared ReadOnly locker As New Object()
-    Private firstLoadScanResults As Boolean = False
+    Private firstLoadScanResults As Boolean = True
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
