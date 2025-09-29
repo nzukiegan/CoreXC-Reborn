@@ -876,16 +876,16 @@ Public Class Form1
     Private Async Sub ProcessLogEntry(logLine As String)
         Dim pattern As String =
         "^(?<no>\d+)\s+\S+\s+(?<source>\S+)\s*" &
-        "(?:time\[(?<time>\d+)\])?\s*" &
-        "(?:taType\[(?<event>[^\]]*)\])?\s*" &
-        "(?:imsi\[(?<imsi>\d*)\])?\s*" &
-        "(?:imei\[(?<imei>[^\]]*)\])?\s*" &
-        "(?:ulSig\[(?<ulsig>-?\d+)\])?\s*" &
-        "(?:ulTa\[(?<ta>\d+)\])?\s*" &
-        "(?:bl_indi\[(?<count>\d+)\])?\s*" &
-        "(?:tmsi\[(?<tmsi>[0-9A-Fa-f]*)\])?\s*" &
-        "(?:lac\[(?<lac>\d+)\])?\s*" &
-        "(?:dlrscp\[(?<rscp>-?\d+)\])?\s*$"
+        "(?:time\[(?<time>\d+)\]\s*)?" &
+        "(?:taType\[(?<event>[^\]]*)\]\s*)?" &
+        "(?:imsi\[(?<imsi>\d*)\]\s*)?" &
+        "(?:imei\[(?<imei>[^\]]*)\]\s*)?" &
+        "(?:ulSig\[(?<ulsig>-?\d+)\]\s*)?" &
+        "(?:ulTa\[(?<ta>\d+)\]\s*)?" &
+        "(?:bl_indi\[(?<count>\d+)\]\s*)?" &
+        "(?:tmsi\[(?<tmsi>[0-9A-Fa-f]*)\]\s*)?" &
+        "(?:lac\[(?<lac>\d+)\]?)?\s*" &
+        "(?:dlrscp(?:\[(?<rscp>-?\d+)\])?)?\s*$"
 
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
