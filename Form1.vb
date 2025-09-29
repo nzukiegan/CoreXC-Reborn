@@ -4795,7 +4795,6 @@ Public Class Form1
         {7, "192.168.1.96"},
         {8, "192.168.1.97"},
         {9, "192.168.1.98"},
-        {10, "192.168.1.99"},
         {11, "192.168.1.101"},
         {12, "192.168.1.102"},
         {13, "192.168.1.103"},
@@ -4805,7 +4804,7 @@ Public Class Form1
         If ipMap.ContainsKey(channelNumber) Then
             Return ipMap(channelNumber)
         Else
-            Return "192.168.1.100"
+            Return "0"
         End If
     End Function
 
