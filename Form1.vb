@@ -886,7 +886,7 @@ Public Class Form1
         "bl_indi\[(?<count>\d+)\]\s+" &
         "tmsi\[(?<tmsi>[0-9A-Fa-f]+)\]\s*" &
         "lac\[(?<lac>\d+)\]\s+" &
-        "dlrscp\[(?<rscp>\d+)\]\s*$"
+        "(?:dlrscp(?:\[(?<rscp>\d+)\])?)\s*$"
 
         Dim m As Match = Regex.Match(logLine, pattern)
         If Not m.Success Then
