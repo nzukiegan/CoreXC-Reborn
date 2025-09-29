@@ -684,6 +684,7 @@ Public Class Form1
                                         While listenerRunning
                                             Try
                                                 Dim result As UdpReceiveResult = Await udp.ReceiveAsync()
+                                                Console.WriteLine(result)
                                                 packetQueue.Enqueue(Tuple.Create(result.Buffer, result.RemoteEndPoint.Address.ToString()))
                                             Catch ex As Exception
                                                 If listenerRunning Then
@@ -711,7 +712,7 @@ Public Class Form1
                     Dim response As String = Encoding.ASCII.GetString(packet.Item1)
                     ProcessUdpMessage(response, packet.Item2)
                 Catch ex As Exception
-                    Console.WriteLine("Worker Error: " & ex.Message)
+                    Console.WriteLine("Worker Error: " & ex.StackTrace)
                 End Try
             Else
                 Await Task.Delay(1)
