@@ -1530,6 +1530,7 @@ Public Class Form1
 
 
     Private Sub processResponse(response As String)
+        Console.WriteLine(response)
         Try
             If response.IndexOf("Gsm", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 Console.WriteLine(response)
@@ -1558,6 +1559,10 @@ Public Class Form1
             End If
 
             If response.IndexOf("StartCell", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                If response.Trim().Equals("StartCell RESULT[SUCCESS] INFO[ ]", StringComparison.OrdinalIgnoreCase) Then
+                    Return
+                End If
+
                 ProcessLogEntry(response)
                 Return
             End If
