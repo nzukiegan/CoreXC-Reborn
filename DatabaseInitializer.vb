@@ -101,6 +101,28 @@ Public Class DatabaseInitializer
         Next
     End Function
 
+    Public Async Function BaseStationsHasDataAsync() As Task(Of Boolean)
+        Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"
+
+        Dim sql As String =
+        "IF OBJECT_ID('dbo.base_stations','U') IS NULL " &
+        "    SELECT 0 " &
+        "ELSE " &
+        "    SELECT COUNT(*) FROM dbo.base_stations;"
+
+        Using conn As New SqlConnection(targetDbConnection)
+            Await conn.OpenAsync()
+            Using cmd As New SqlCommand(sql, conn)
+                Dim resultObj As Object = Await cmd.ExecuteScalarAsync()
+                Dim count As Integer = 0
+                If resultObj IsNot Nothing AndAlso Not IsDBNull(resultObj) Then
+                    Integer.TryParse(resultObj.ToString(), count)
+                End If
+                Return count > 0
+            End Using
+        End Using
+    End Function
+
 
     Public Async Function SeedOperatorsAsync() As Task
         Dim targetDbConnection As String = $"Server=(localdb)\MSSQLLocalDB;Database={targetDbName};Integrated Security=true;"

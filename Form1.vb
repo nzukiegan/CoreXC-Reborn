@@ -103,7 +103,10 @@ Public Class Form1
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
             Await dbInitializer.InitializeBaseStations()
-            Await dbInitializer.GetBaseStationsFromBackend(udp)
+            Dim hasData As Boolean = Await dbInitializer.BaseStationsHasDataAsync()
+            If Not hasData Then
+                Await dbInitializer.GetBaseStationsFromBackend(udp)
+            End If
             disableAllBtns()
             LoadDataToGridViews()
             ApplyFilterToDataGridViews()
