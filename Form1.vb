@@ -1524,7 +1524,7 @@ Public Class Form1
 
         Try
             Dim bytes = Encoding.ASCII.GetBytes("StartSniffer")
-            udp.Send(bytes, bytes.Length, "192.168.1.99", 9001)
+            'udp.Send(bytes, bytes.Length, "192.168.1.99", 9001)
             udp.Send(bytes, bytes.Length, "192.168.1.100", 9001)
 
             PictureBox15.BackColor = Color.Green
