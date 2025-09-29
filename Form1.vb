@@ -930,6 +930,7 @@ Public Class Form1
 
         InsertScanResult(row)
         UpdateScanResultDv(row)
+        Await LoadChartData()
         Dim targetName As String = Await CheckBlacklist(selectedSchema, imsi, imei)
         If Not String.IsNullOrEmpty(targetName) Then
             'target is found
@@ -982,7 +983,6 @@ Public Class Form1
 
             Await InsertTargetAsync(selectedSchema, dateEvent, source, rat, band, providerName, mcc, mnc, targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
             AddTargetRowToGrid(dateEvent, source, rat, band, providerName, Convert.ToInt32(mcc), Convert.ToInt32(mnc), targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
-            LoadChartData()
         End If
     End Sub
 
@@ -1399,6 +1399,8 @@ Public Class Form1
                 dt.Columns.Add("rat", GetType(String))
             End If
 
+            DataGridView4.SuspendLayout()
+
             Dim existingRow As DataRow = Nothing
             For Each dr As DataRow In dt.Rows
                 Dim drImsi As String = If(dr.Table.Columns.Contains("imsi") AndAlso Not dr.IsNull("imsi"), dr("imsi").ToString(), "")
@@ -1433,7 +1435,7 @@ Public Class Form1
 
                 If dt.Columns.Contains("date_event") Then
                     newRow("date_event") = If(row.ContainsKey("date_event") AndAlso row("date_event") IsNot Nothing,
-                                           row("date_event"), DateTime.Now)
+                                          row("date_event"), DateTime.Now)
                 End If
 
                 If dt.Columns.Contains("count") Then
@@ -1444,10 +1446,14 @@ Public Class Form1
 
                 dt.Rows.InsertAt(newRow, 0)
             End If
+
         Catch ex As Exception
             Debug.WriteLine("ApplyRowToGrid error: " & ex.Message)
+        Finally
+            DataGridView4.ResumeLayout(False)
         End Try
     End Sub
+
 
 
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As Double, ByRef lon As Double, ByRef add As String)
@@ -2293,7 +2299,7 @@ Public Class Form1
             Double.TryParse(row.Cells("Column60").Value.ToString(), selectedLatitude)
         End If
     End Sub
-    Private Async Sub LoadChartData()
+    Private Async Function LoadChartData() As Task
         Try
             Using conn As New SqlConnection(connectionString)
                 Await conn.OpenAsync()
@@ -2336,7 +2342,7 @@ Public Class Form1
         Catch ex As Exception
             MessageBox.Show("Error loading chart data: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
-    End Sub
+    End Function
 
     Private Sub LoadWhitelistData()
         Try
