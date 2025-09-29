@@ -795,9 +795,9 @@ Public Class Form1
             Dim isGsm As Integer = 0
             Dim isWcdma As Integer = 0
 
-            If erfcn > 0 Then
+            If Not String.IsNullOrEmpty(GetFirstText(xmlDoc, "//erfcn", "//content//erfcn", "//cell//item//earfcn")) Then
                 isLte = 1
-            ElseIf arfcn > 0 Then
+            ElseIf Not String.IsNullOrEmpty(GetFirstText(xmlDoc, "//arfcn", "//cell/item/arfcnList//arfcn", "//cell//arfcn", "//content//arfcn")) Then
                 isGsm = 1
             ElseIf Not String.IsNullOrEmpty(GetFirstText(xmlDoc, "//psc", "//uarfcn")) Then
                 isWcdma = 1
