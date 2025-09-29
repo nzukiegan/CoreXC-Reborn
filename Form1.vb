@@ -670,7 +670,7 @@ Public Class Form1
     Private Sub StartUdpListener()
         If listenerRunning Then Return
 
-        udp = New UdpClient(New IPEndPoint(IPAddress.Any, 9001))
+        udp = New UdpClient(New IPEndPoint(IPAddress.Parse("192.168.1.240"), 9001))
         udp.Client.ReceiveBufferSize = 4 * 1024 * 1024
         udp.EnableBroadcast = True
 
