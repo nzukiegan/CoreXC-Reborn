@@ -1454,8 +1454,6 @@ Public Class Form1
         End Try
     End Sub
 
-
-
     Private Shared Sub GetCellLocation(mcc As String, mnc As String, lac As String, cid As Integer, ByRef lat As Double, ByRef lon As Double, ByRef add As String)
         Dim apiKey As String = "pk.3b202963e54283dd02838406ae4df7be"
         Dim url As String = "https://us1.unwiredlabs.com/v2/process"
@@ -1541,7 +1539,7 @@ Public Class Form1
     Private Sub processResponse(response As String)
         Console.WriteLine(response)
         Try
-            If response.IndexOf("Gsm", StringComparison.OrdinalIgnoreCase) >= 0 Then
+            If response.IndexOf("GsmSnifferRsltIndi", StringComparison.OrdinalIgnoreCase) >= 0 Then
                 Console.WriteLine(response)
                 ProcessGsmData(response)
                 Return
