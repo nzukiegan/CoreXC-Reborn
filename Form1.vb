@@ -72,6 +72,7 @@ Public Class Form1
     Private heartbeatRunning As Boolean = False
     Private packetQueue As ConcurrentQueue(Of Tuple(Of Byte(), String))
     Private workerTasks As List(Of Task)
+    Private silentCalls(3) As SilentCall
     Public Shared ipMap As New Dictionary(Of Integer, String) From {
             {1, "192.168.1.90"},
             {2, "192.168.1.91"},
@@ -141,6 +142,29 @@ Public Class Form1
             MessageBox.Show("Database setup failed: " & ex.StackTrace)
         End Try
     End Sub
+
+    Private Class SilentCall
+        Public Property Slot As Integer
+        Public Property DateEvent As DateTime
+        Public Property Source As String
+        Public Property Rat As String
+        Public Property Band As String
+        Public Property ProviderName As String
+        Public Property Mcc As Integer
+        Public Property Mnc As Integer
+        Public Property TargetName As String
+        Public Property Imsi As String
+        Public Property Imei As String
+        Public Property UlChannel As Integer
+        Public Property DlChannel As Integer
+        Public Property UlFreq As Double
+        Public Property DlFreq As Double
+        Public Property SignalLevel As Double
+        Public Property PhoneModel As String
+        Public Property Longitude As Double
+        Public Property Latitude As Double
+        Public Property DistanceMeters As Double?
+    End Class
 
     Public Shared Sub LoadTacDb(Optional csvPath As String = Nothing)
         SyncLock locker
@@ -3277,6 +3301,266 @@ Public Class Form1
                 MessageBox.Show("Error deleting whitelist: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
             End Try
         End If
+    End Sub
+
+    Private Async Sub Button32_Click(sender As Object, e As EventArgs) Handles Button32.Click
+        Try
+            Dim sc As SilentCall = GetSelectedSilentCallFromGrid()
+            If sc Is Nothing Then
+                MessageBox.Show("No row selected or missing data.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            Dim slotIndex As Integer = -1
+            For i As Integer = 0 To 3
+                If silentCalls(i) Is Nothing Then
+                    slotIndex = i
+                    Exit For
+                End If
+            Next
+
+            If slotIndex = -1 Then
+                MessageBox.Show("Maximum of 4 silent calls already active. Remove one before adding.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            sc.Slot = slotIndex + 1
+            sc.DistanceMeters = ComputeDistanceToCurrent(sc.Latitude, sc.Longitude)
+
+            AssignSilentCallToSlot(slotIndex, sc)
+
+            silentCalls(slotIndex) = sc
+
+            EnsureSilentCallsTableExists(connectionString)
+            Await SaveSilentCallAsync(connectionString, sc)
+
+        Catch ex As Exception
+            Debug.WriteLine("Button32_Click error: " & ex.ToString())
+            MessageBox.Show("Error adding silent call: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Function getInt(row As DataGridViewRow, colName As String, Optional def As Integer = 0) As Integer
+        Try
+            If row Is Nothing Then Return def
+            Dim c = row.Cells(colName)
+            If c IsNot Nothing AndAlso c.Value IsNot Nothing Then
+                Dim s As String = c.Value.ToString().Trim()
+                Dim v As Integer
+                If Integer.TryParse(s, v) Then
+                    Return v
+                End If
+            End If
+        Catch
+
+        End Try
+        Return def
+    End Function
+
+    Private Function getDouble(row As DataGridViewRow, colName As String, Optional def As Double = 0.0) As Double
+        Try
+            If row Is Nothing Then Return def
+            Dim c = row.Cells(colName)
+            If c IsNot Nothing AndAlso c.Value IsNot Nothing Then
+                Dim s As String = c.Value.ToString().Trim()
+                Dim v As Double
+                If Double.TryParse(s, v) Then
+                    Return v
+                End If
+            End If
+        Catch
+        End Try
+        Return def
+    End Function
+
+
+    Private Function GetSelectedSilentCallFromGrid() As SilentCall
+        If DataGridView5 Is Nothing Then Return Nothing
+
+        Dim row As DataGridViewRow = Nothing
+        If DataGridView5.SelectedRows IsNot Nothing AndAlso DataGridView5.SelectedRows.Count > 0 Then
+            row = DataGridView5.SelectedRows(0)
+        ElseIf DataGridView5.CurrentRow IsNot Nothing Then
+            row = DataGridView5.CurrentRow
+        Else
+            Return Nothing
+        End If
+
+        Try
+            Dim getStr = Function(colName As String) As String
+                             Try
+                                 Dim c = row.Cells(colName)
+                                 If c IsNot Nothing AndAlso c.Value IsNot Nothing Then
+                                     Return c.Value.ToString().Trim()
+                                 End If
+                             Catch
+                             End Try
+                             Return String.Empty
+                         End Function
+            Dim dt As DateTime
+            Dim sc As New SilentCall With {
+            .DateEvent = If(DateTime.TryParse(getStr("Column80"), dt), dt, DateTime.Now),
+            .Source = getStr("Column87"),
+            .Rat = getStr("Column88"),
+            .Band = getStr("Column89"),
+            .ProviderName = getStr("Column81"),
+            .Mcc = getInt(row, "Column82", 0),
+            .Mnc = getInt(row, "Column83", 0),
+            .TargetName = getStr("Column84"),
+            .Imsi = getStr("Column85"),
+            .Imei = getStr("Column86"),
+            .UlChannel = getInt(row, "Column90", 0),
+            .DlChannel = getInt(row, "Column91", 0),
+            .UlFreq = getDouble(row, "Column92", 0.0),
+            .DlFreq = getDouble(row, "Column93", 0.0),
+            .SignalLevel = getDouble(row, "Column94", 0.0),
+            .PhoneModel = getStr("Column95"),
+            .Longitude = getDouble(row, "Column96", 0.0),
+            .Latitude = getDouble(row, "Column97", 0.0)
+        }
+
+            Return sc
+        Catch ex As Exception
+            Debug.WriteLine("GetSelectedSilentCallFromGrid error: " & ex.ToString())
+            Return Nothing
+        End Try
+    End Function
+
+    Private Sub AssignSilentCallToSlot(slotIndex As Integer, sc As SilentCall)
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() AssignSilentCallToSlot(slotIndex, sc))
+            Return
+        End If
+
+        Select Case slotIndex
+            Case 0
+                UpdateSilentCallGroup(sc, Label144, Label149, Label154, Label159, Label160, Label161, Label162, Label163, Label164, ProgressBar1)
+            Case 1
+                UpdateSilentCallGroup(sc, Label173, Label172, Label171, Label170, Label169, Label168, Label167, Label166, Label165, ProgressBar2)
+            Case 2
+                UpdateSilentCallGroup(sc, Label182, Label181, Label180, Label179, Label178, Label177, Label176, Label175, Label174, ProgressBar3)
+            Case 3
+                UpdateSilentCallGroup(sc, Label191, Label190, Label189, Label188, Label187, Label186, Label185, Label184, Label183, ProgressBar4)
+        End Select
+    End Sub
+
+    Private Sub UpdateSilentCallGroup(sc As SilentCall,
+                                  lblTarget As Label,
+                                  lblImsi As Label,
+                                  lblImei As Label,
+                                  lblBand As Label,
+                                  lblRat As Label,
+                                  lblUlFreq As Label,
+                                  lblUlChan As Label,
+                                  lblDistance As Label,
+                                  lblRx As Label,
+                                  pb As ProgressBar)
+
+        lblTarget.Text = "Target Name - " & If(String.IsNullOrEmpty(sc.TargetName), "-", sc.TargetName)
+        lblImsi.Text = "IMSI - " & If(String.IsNullOrEmpty(sc.Imsi), "-", sc.Imsi)
+        lblImei.Text = "IMEI - " & If(String.IsNullOrEmpty(sc.Imei), "-", sc.Imei)
+        lblBand.Text = "BAND - " & If(String.IsNullOrEmpty(sc.Band), "-", sc.Band)
+        lblRat.Text = "RAT - " & If(String.IsNullOrEmpty(sc.Rat), "-", sc.Rat)
+        lblUlFreq.Text = "Uplink Frequency - " & If(sc.UlFreq <> 0, sc.UlFreq.ToString("F3"), "-")
+        lblUlChan.Text = "Uplink Channel - " & If(sc.UlChannel <> 0, sc.UlChannel.ToString(), "-")
+
+        If sc.DistanceMeters.HasValue Then
+            lblDistance.Text = "Distance to Target - " & $"{Math.Round(sc.DistanceMeters.Value, 1)} m"
+        Else
+            lblDistance.Text = "Distance to Target - -"
+        End If
+
+        lblRx.Text = "Rx Level - " & If(Double.IsNaN(sc.SignalLevel), "-", sc.SignalLevel.ToString())
+        Try
+            pb.Value = MapSignalToProgress(sc.SignalLevel)
+        Catch
+            pb.Value = 0
+        End Try
+    End Sub
+
+
+    Private Function MapSignalToProgress(signalDbm As Double) As Integer
+        Dim minDbm As Double = -120
+        Dim maxDbm As Double = -40
+
+        If Double.IsNaN(signalDbm) Then Return 0
+        If signalDbm <= minDbm Then Return 0
+        If signalDbm >= maxDbm Then Return 100
+
+        Dim pct As Double = (signalDbm - minDbm) / (maxDbm - minDbm)
+        Return CInt(Math.Round(pct * 100))
+    End Function
+
+    Private Function ComputeDistanceToCurrent(targetLat As Double, targetLon As Double) As Double?
+        Return 0
+    End Function
+
+    Private Function DegreesToRadians(d As Double) As Double
+        Return d * Math.PI / 180.0
+    End Function
+
+    Private Async Function SaveSilentCallAsync(connStr As String, sc As SilentCall) As Task
+        Try
+            Dim insertSql As String = $"
+INSERT INTO [{selectedSchema}].[silent_calls]
+(slot, date_event, source, rat, band, provider_name, mcc, mnc, target_name, imsi, imei, ul_channel, dl_channel, ul_freq, dl_freq, signal_level, phone_model, longitude, latitude, distance_meters)
+VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @target_name, @imsi, @imei, @ul_channel, @dl_channel, @ul_freq, @dl_freq, @signal_level, @phone_model, @longitude, @latitude, @distance_meters);
+"
+            Using conn As New SqlConnection(connStr)
+                Await conn.OpenAsync()
+                Using cmd As New SqlCommand(insertSql, conn)
+                    cmd.Parameters.AddWithValue("@slot", sc.Slot)
+                    cmd.Parameters.AddWithValue("@date_event", sc.DateEvent)
+                    cmd.Parameters.AddWithValue("@source", If(sc.Source, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@rat", If(sc.Rat, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@band", If(sc.Band, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@provider_name", If(sc.ProviderName, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@mcc", sc.Mcc)
+                    cmd.Parameters.AddWithValue("@mnc", sc.Mnc)
+                    cmd.Parameters.AddWithValue("@target_name", If(sc.TargetName, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@imsi", If(sc.Imsi, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@imei", If(sc.Imei, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@ul_channel", sc.UlChannel)
+                    cmd.Parameters.AddWithValue("@dl_channel", sc.DlChannel)
+                    cmd.Parameters.AddWithValue("@ul_freq", sc.UlFreq)
+                    cmd.Parameters.AddWithValue("@dl_freq", sc.DlFreq)
+                    cmd.Parameters.AddWithValue("@signal_level", sc.SignalLevel)
+                    cmd.Parameters.AddWithValue("@phone_model", If(sc.PhoneModel, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@longitude", sc.Longitude)
+                    cmd.Parameters.AddWithValue("@latitude", sc.Latitude)
+                    If sc.DistanceMeters.HasValue Then
+                        cmd.Parameters.AddWithValue("@distance_meters", sc.DistanceMeters.Value)
+                    Else
+                        cmd.Parameters.AddWithValue("@distance_meters", DBNull.Value)
+                    End If
+
+                    Await cmd.ExecuteNonQueryAsync()
+                End Using
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine("SaveSilentCallAsync error: " & ex.ToString())
+        End Try
+    End Function
+
+    Private Sub ClearSilentCallSlot(slotIndex As Integer)
+        If slotIndex < 0 OrElse slotIndex > 3 Then Return
+        silentCalls(slotIndex) = Nothing
+
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() ClearSilentCallSlot(slotIndex))
+            Return
+        End If
+
+        Select Case slotIndex
+            Case 0
+                UpdateSilentCallGroup(New SilentCall(), Label144, Label149, Label154, Label159, Label160, Label161, Label162, Label163, Label164, ProgressBar1)
+            Case 1
+                UpdateSilentCallGroup(New SilentCall(), Label173, Label172, Label171, Label170, Label169, Label168, Label167, Label166, Label165, ProgressBar2)
+            Case 2
+                UpdateSilentCallGroup(New SilentCall(), Label182, Label181, Label180, Label179, Label178, Label177, Label176, Label175, Label174, ProgressBar3)
+            Case 3
+                UpdateSilentCallGroup(New SilentCall(), Label191, Label190, Label189, Label188, Label187, Label186, Label185, Label184, Label183, ProgressBar4)
+        End Select
     End Sub
 
     Private Sub Button75_Click(sender As Object, e As EventArgs) Handles Button75.Click
