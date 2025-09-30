@@ -3328,7 +3328,7 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub DataGridView5_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
+    Private Sub DataGridView5_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView5.CellClick
 
         If e.RowIndex >= 0 AndAlso e.ColumnIndex >= 0 Then
             Dim row As DataGridViewRow = DataGridView5.Rows(e.RowIndex)
