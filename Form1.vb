@@ -3331,7 +3331,6 @@ Public Class Form1
 
             silentCalls(slotIndex) = sc
 
-            EnsureSilentCallsTableExists(connectionString)
             Await SaveSilentCallAsync(connectionString, sc)
 
         Catch ex As Exception
