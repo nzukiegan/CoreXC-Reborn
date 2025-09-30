@@ -84,7 +84,7 @@ Public Class DatabaseHelper
     Public Function GetTargetsDataTableAsync(schemaName As String) As DataTable
         Dim dt As New DataTable()
 
-        If String.IsNullOrWhiteSpace(schemaName) OrElse (Not Regex.IsMatch(schemaName, "^[A-Za-z0-9_]+$")) Then
+        If String.IsNullOrWhiteSpace(schemaName) Then
             Throw New ArgumentException("Invalid schema name.", NameOf(schemaName))
         End If
 
