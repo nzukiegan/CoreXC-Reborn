@@ -2427,7 +2427,7 @@ Public Class Form1
 
     Private Sub Button35_Click(sender As Object, e As EventArgs) Handles Button35.Click
         If selectedLongitude <> 0 AndAlso selectedLatitude <> 0 Then
-            Dim loc = LocationHelper.GetCurrentLocation()
+            Dim loc = LocationHelper.GetCurrentLocationFromIp()
             ShowMapDirection(loc.Latitude, loc.Longitude, selectedLatitude, selectedLongitude)
         Else
             MessageBox.Show("Please select a row to display map.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
@@ -3502,7 +3502,7 @@ Public Class Form1
         lblUlChan.Text = "Uplink Channel - " & If(sc.UlChannel <> 0, sc.UlChannel.ToString(), "-")
 
         If sc.DistanceMeters.HasValue Then
-            lblDistance.Text = "Distance to Target - " & $"{Math.Round(sc.DistanceMeters.Value, 1)} m"
+            lblDistance.Text = "Distance to Target - " & $"{Math.Round(sc.DistanceMeters.Value / 1000, 1)} km"
         Else
             lblDistance.Text = "Distance to Target - -"
         End If
@@ -3676,7 +3676,31 @@ ELSE
     End Function
 
     Private Function ComputeDistanceToCurrent(targetLat As Double, targetLon As Double) As Double?
-        Return 0
+        Try
+            Dim current = LocationHelper.GetCurrentLocationFromIp()
+
+            If current.Latitude = 0 AndAlso current.Longitude = 0 Then
+                Return Nothing
+            End If
+
+            Dim R As Double = 6371.0
+            Dim dLat As Double = (targetLat - current.Latitude) * Math.PI / 180.0
+            Dim dLon As Double = (targetLon - current.Longitude) * Math.PI / 180.0
+
+            Dim lat1 As Double = current.Latitude * Math.PI / 180.0
+            Dim lat2 As Double = targetLat * Math.PI / 180.0
+
+            Dim a As Double = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                          Math.Cos(lat1) * Math.Cos(lat2) *
+                          Math.Sin(dLon / 2) * Math.Sin(dLon / 2)
+
+            Dim c As Double = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a))
+
+            Dim distance As Double = R * c * 1000
+            Return distance
+        Catch
+            Return Nothing
+        End Try
     End Function
 
     Private Function DegreesToRadians(d As Double) As Double
