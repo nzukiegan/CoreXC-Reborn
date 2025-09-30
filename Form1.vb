@@ -2299,14 +2299,14 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
+    Private Async Sub Button74_Click(sender As Object, e As EventArgs) Handles Button74.Click
         If SelectedSchema1 IsNot Nothing Then
             selectedSchema = SelectedSchema1
             LoadBlacklistData()
             LoadWhitelistData()
             Dim dbHelper As New DatabaseHelper()
-            'LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema
-            SeedTestTargets()
+            LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema))
+            Await LoadSilentCallsAsync(selectedSchema)
         ElseIf selectedSchema Is Nothing Then
             MessageBox.Show("Please select a database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
@@ -3514,6 +3514,153 @@ Public Class Form1
             pb.Value = 0
         End Try
     End Sub
+
+    Public Async Function LoadSilentCallsAsync(selectedSchema As String) As Task
+        If String.IsNullOrWhiteSpace(selectedSchema) OrElse (Not Regex.IsMatch(selectedSchema, "^[A-Za-z0-9_]+$")) Then
+            Throw New ArgumentException("Invalid schema name.", NameOf(selectedSchema))
+        End If
+
+        Dim sql As String =
+$"IF OBJECT_ID(N'[{selectedSchema}].silent_calls','U') IS NULL
+    SELECT 0 AS table_exists
+ELSE
+    SELECT 1 AS table_exists, slot, date_event, source, rat, band, provider_name, mcc, mnc,
+           target_name, imsi, imei, ul_channel, dl_channel, ul_freq, dl_freq, signal_level,
+           phone_model, longitude, latitude, distance_meters
+    FROM [{selectedSchema}].silent_calls
+    WHERE slot BETWEEN 1 AND 4
+    ORDER BY slot, date_event DESC;"
+
+        Try
+            Using conn As New SqlConnection(connectionString)
+                Await conn.OpenAsync().ConfigureAwait(False)
+
+                Using cmd As New SqlCommand(sql, conn)
+                    Using rdr As SqlDataReader = Await cmd.ExecuteReaderAsync()
+                        Dim tableExists As Boolean = False
+                        If Await rdr.ReadAsync() Then
+                            If Not rdr.IsDBNull(0) Then
+                                Dim tbv As Integer = Convert.ToInt32(rdr.GetValue(0))
+                                tableExists = (tbv = 1)
+                            End If
+                        End If
+
+                        If Not tableExists Then
+                            For i As Integer = 0 To 3
+                                silentCalls(i) = Nothing
+                                If Me.InvokeRequired Then
+                                    Me.Invoke(Sub() AssignSilentCallToSlot(i, New SilentCall()))
+                                Else
+                                    AssignSilentCallToSlot(i, New SilentCall())
+                                End If
+                            Next
+                            Return
+                        End If
+
+                        Dim rows As New List(Of Dictionary(Of String, Object))()
+
+                        Do
+                            Dim dict As New Dictionary(Of String, Object)(StringComparer.OrdinalIgnoreCase)
+                            For i As Integer = 0 To rdr.FieldCount - 1
+                                Dim name As String = rdr.GetName(i)
+                                dict(name) = If(rdr.IsDBNull(i), Nothing, rdr.GetValue(i))
+                            Next
+                            rows.Add(dict)
+                        Loop While Await rdr.ReadAsync()
+                        Dim slotAssigned As New Dictionary(Of Integer, SilentCall)()
+
+                        For Each rdict In rows
+                            If Not rdict.ContainsKey("slot") Then Continue For
+                            Dim slotObj = rdict("slot")
+                            If slotObj Is Nothing Then Continue For
+                            Dim slotNum As Integer = 0
+                            If Not Integer.TryParse(slotObj.ToString(), slotNum) Then Continue For
+                            If slotNum < 1 OrElse slotNum > 4 Then Continue For
+
+                            If slotAssigned.ContainsKey(slotNum) Then
+                                Continue For
+                            End If
+
+                            Dim sc As New SilentCall()
+                            sc.Slot = slotNum
+                            sc.DateEvent = If(rdict.ContainsKey("date_event") AndAlso rdict("date_event") IsNot Nothing, Convert.ToDateTime(rdict("date_event")), DateTime.Now)
+                            sc.Source = GetDictString(rdict, "source")
+                            sc.Rat = GetDictString(rdict, "rat")
+                            sc.Band = GetDictString(rdict, "band")
+                            sc.ProviderName = GetDictString(rdict, "provider_name")
+                            sc.Mcc = GetDictInt(rdict, "mcc")
+                            sc.Mnc = GetDictInt(rdict, "mnc")
+                            sc.TargetName = GetDictString(rdict, "target_name")
+                            sc.Imsi = GetDictString(rdict, "imsi")
+                            sc.Imei = GetDictString(rdict, "imei")
+                            sc.UlChannel = GetDictInt(rdict, "ul_channel")
+                            sc.DlChannel = GetDictInt(rdict, "dl_channel")
+                            sc.UlFreq = GetDictDouble(rdict, "ul_freq")
+                            sc.DlFreq = GetDictDouble(rdict, "dl_freq")
+                            sc.SignalLevel = GetDictDouble(rdict, "signal_level")
+                            sc.PhoneModel = GetDictString(rdict, "phone_model")
+                            sc.Longitude = GetDictDouble(rdict, "longitude")
+                            sc.Latitude = GetDictDouble(rdict, "latitude")
+                            sc.DistanceMeters = If(rdict.ContainsKey("distance_meters") AndAlso rdict("distance_meters") IsNot Nothing, CType(rdict("distance_meters"), Double?), Nothing)
+
+                            slotAssigned(slotNum) = sc
+                        Next
+
+                        For slotIndex As Integer = 1 To 4
+                            Dim arrIndex As Integer = slotIndex - 1
+                            If slotAssigned.ContainsKey(slotIndex) Then
+                                Dim sc As SilentCall = slotAssigned(slotIndex)
+                                silentCalls(arrIndex) = sc
+                                If Me.InvokeRequired Then
+                                    Me.Invoke(Sub() AssignSilentCallToSlot(arrIndex, sc))
+                                Else
+                                    AssignSilentCallToSlot(arrIndex, sc)
+                                End If
+                            Else
+                                silentCalls(arrIndex) = Nothing
+                                If Me.InvokeRequired Then
+                                    Me.Invoke(Sub() AssignSilentCallToSlot(arrIndex, New SilentCall()))
+                                Else
+                                    AssignSilentCallToSlot(arrIndex, New SilentCall())
+                                End If
+                            End If
+                        Next
+
+                    End Using
+                End Using
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine("LoadSilentCallsAsync error: " & ex.ToString())
+            If Me.InvokeRequired Then
+                Me.Invoke(Sub() MessageBox.Show("Error loading silent calls: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error))
+            Else
+                MessageBox.Show("Error loading silent calls: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End If
+        End Try
+    End Function
+
+    Function GetDictString(d As Dictionary(Of String, Object), key As String) As String
+        If d.ContainsKey(key) AndAlso d(key) IsNot Nothing Then
+            Return d(key).ToString()
+        End If
+        Return String.Empty
+    End Function
+
+    Function GetDictInt(d As Dictionary(Of String, Object), key As String) As Integer
+        If d.ContainsKey(key) AndAlso d(key) IsNot Nothing Then
+            Dim tmp As Integer = 0
+            If Integer.TryParse(d(key).ToString(), tmp) Then Return tmp
+        End If
+        Return 0
+    End Function
+
+    Function GetDictDouble(d As Dictionary(Of String, Object), key As String) As Double
+        If d.ContainsKey(key) AndAlso d(key) IsNot Nothing Then
+            Dim tmp As Double = 0
+            If Double.TryParse(d(key).ToString(), tmp) Then Return tmp
+        End If
+        Return 0.0
+    End Function
 
 
     Private Function MapSignalToProgress(signalDbm As Double) As Integer
