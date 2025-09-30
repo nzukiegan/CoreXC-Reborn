@@ -21,7 +21,7 @@ Imports Microsoft.VisualBasic.FileIO
 
 Public Class Form1
     Private cts As Threading.CancellationTokenSource
-    Private connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
+    Shared connectionString As String = "Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Trusted_Connection=True;"
     Private buttonStates As New Dictionary(Of Integer, Boolean)()
     Private WithEvents pingTimer As System.Windows.Forms.Timer
     Private originalValues As New Dictionary(Of String, String)
@@ -1600,7 +1600,6 @@ Public Class Form1
                 Await Task.Delay(30000)
                 LoadBaseStationData()
                 LoadBaseStationData1()
-
             Catch ex As Exception
                 Console.WriteLine("Error in periodic task: " & ex.Message)
             End Try
@@ -4723,7 +4722,6 @@ Public Class Form1
     End Sub
 
     Private Sub ComboBox12_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox12.SelectedIndexChanged
-        Console.WriteLine("Combo box selected ")
         HandleTechnologyChange(1, ComboBox12.SelectedItem.ToString())
     End Sub
 
@@ -4756,8 +4754,41 @@ Public Class Form1
         End If
 
         SendSwitchCommand(ipAddress, command)
+        updateBaseStationTech(technology, channelNumber)
     End Sub
 
+
+    Public Shared Sub updateBaseStationTech(technology As String, channelNumber As Integer)
+        If String.IsNullOrEmpty(technology) Then
+            Return
+        End If
+
+        Dim techLower As String = technology.ToLowerInvariant()
+        Dim isGsm As Boolean = techLower.Contains("gsm")
+        Dim isLte As Boolean = techLower.Contains("lte")
+        Dim isWcdma As Boolean = (Not isGsm AndAlso Not isLte) OrElse techLower.Contains("wcdma") OrElse techLower.Contains("umts") OrElse techLower.Contains("3g")
+
+        Dim sql As String =
+        "UPDATE dbo.base_stations " &
+        "SET is_gsm = @isGsm, is_lte = @isLte, is_wcdma = @isWcdma, last_updated = SYSUTCDATETIME() " &
+        "WHERE channel_number = @channelNumber;"
+
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using cmd As New SqlCommand(sql, conn)
+                    cmd.Parameters.Add("@isGsm", SqlDbType.Bit).Value = If(isGsm, 1, 0)
+                    cmd.Parameters.Add("@isLte", SqlDbType.Bit).Value = If(isLte, 1, 0)
+                    cmd.Parameters.Add("@isWcdma", SqlDbType.Bit).Value = If(isWcdma, 1, 0)
+                    cmd.Parameters.Add("@channelNumber", SqlDbType.Int).Value = channelNumber
+
+                    Dim rows As Integer = cmd.ExecuteNonQuery()
+                End Using
+            End Using
+        Catch ex As Exception
+            Debug.WriteLine("updateBaseStationTech error: " & ex.Message)
+        End Try
+    End Sub
 
 
     Public Function CleanBandName(input As String) As String
