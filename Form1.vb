@@ -3516,7 +3516,7 @@ Public Class Form1
     End Sub
 
     Public Async Function LoadSilentCallsAsync(selectedSchema As String) As Task
-        If String.IsNullOrWhiteSpace(selectedSchema) OrElse (Not Regex.IsMatch(selectedSchema, "^[A-Za-z0-9_]+$")) Then
+        If String.IsNullOrWhiteSpace(selectedSchema) Then
             Throw New ArgumentException("Invalid schema name.", NameOf(selectedSchema))
         End If
 
