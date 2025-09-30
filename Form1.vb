@@ -936,7 +936,6 @@ Public Class Form1
         Await LoadChartData()
         Dim targetName As String = Await CheckBlacklist(selectedSchema, imsi, imei)
         If Not String.IsNullOrEmpty(targetName) Then
-            'target is found
             Dim channelNum As Integer = 0
             Dim match As Match = Regex.Match(source, "CH(\d+)", RegexOptions.IgnoreCase)
             If match.Success Then
@@ -3499,7 +3498,7 @@ Public Class Form1
 
     Private Sub LoadChannelData(channelNumber As Integer, dataTable As DataTable)
         If dataTable.Rows.Count > 0 Then
-            Dim row As DataRow = dataTable.Rows(0) ' Get the most recent entry
+            Dim row As DataRow = dataTable.Rows(0)
 
             Select Case channelNumber
                 Case 1
@@ -3520,8 +3519,6 @@ Public Class Form1
                     PopulateChannel8(row)
                 Case 9
                     PopulateChannel9(row)
-                Case 10
-                    PopulateChannel10(row)
                 Case 11
                     PopulateChannel11(row)
                 Case 12
