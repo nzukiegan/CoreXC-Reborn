@@ -2553,16 +2553,6 @@ Public Class Form1
                 End If
             End Using
 
-            Dim query10 As String = "SELECT earfcn FROM base_stations WHERE channel_number = 10"
-            Using command10 As New SqlCommand(query10, connection)
-                Dim earfcn10 As Object = command10.ExecuteScalar()
-                If earfcn10 IsNot Nothing AndAlso earfcn10 IsNot DBNull.Value Then
-                    TextBox95.Text = earfcn10.ToString()
-                Else
-                    TextBox95.Text = ""
-                End If
-            End Using
-
             LoadBaseStationChannel1(9, TextBox94, TextBox93, TextBox91, TextBox92, TextBox89, Nothing, TextBox88, ComboBox20, PictureBox10)
         End Using
     End Sub
