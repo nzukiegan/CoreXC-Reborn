@@ -3976,6 +3976,15 @@ VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @t
         End Select
     End Function
 
+    Private Sub Button33_Click(sender As Object, e As EventArgs) Handles Button33.Click
+
+        Dim dt As DataTable = TryCast(DataGridView5.DataSource, DataTable)
+        If dt IsNot Nothing Then
+            dt.Clear()
+        End If
+    End Sub
+
+
     Public Sub LoadDataToGridViews()
         Try
             Dim dbHelper As New DatabaseHelper()
