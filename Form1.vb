@@ -138,7 +138,7 @@ Public Class Form1
             MessageBox.Show("Database and schema ready!", "Success")
         Catch ex As Exception
             Console.WriteLine("Database setup error: " & ex.StackTrace)
-            MessageBox.Show("Database setup failed: ")
+            MessageBox.Show("Database setup failed: " & ex.StackTrace)
         End Try
     End Sub
 
