@@ -64,6 +64,7 @@ Public Class Form1
     Private selectedLongitude As Double
     Private selectedLatitude As Double
     Private gmap As GMapControl
+    Private gmap2 As GMapControl
     Private selectedBimsi As String
     Private selectedWimsi As String
     Private selectedBImei As String
@@ -131,6 +132,7 @@ Public Class Form1
             AddHandler DataGridView1.SelectionChanged, AddressOf DataGridView_SelectionChanged
 
             InitializeGMap()
+            InitializePositionEstimatorMap()
             LoadTaskingList()
             LoadTacDb()
 
@@ -294,6 +296,18 @@ Public Class Form1
         gmap.Zoom = 14
     End Sub
 
+    Private Sub InitializePositionEstimatorMap()
+        gmap2 = New GMapControl()
+        gmap2.Dock = DockStyle.Fill
+        GroupBox26.Controls.Add(gmap2)
+
+        GMaps.Instance.Mode = AccessMode.ServerAndCache
+        gmap2.MapProvider = GMapProviders.GoogleMap
+        gmap2.MinZoom = 1
+        gmap2.MaxZoom = 20
+        gmap2.Zoom = 14
+    End Sub
+
     Private Sub ShowMapDirection(lat As Double, lon As Double, destLat As Double, destLon As Double)
         gmap.Position = New PointLatLng(lat, lon)
         Dim markers = New GMapOverlay("markers")
@@ -320,6 +334,17 @@ Public Class Form1
             MessageBox.Show("Route not found. Make sure internet is available or cache contains route data.", "Error")
         End If
     End Sub
+
+    Private Sub ShowPosition(lat As Double, lon As Double)
+        gmap2.Position = New PointLatLng(lat, lon)
+        gmap2.Zoom = 16
+        gmap2.Overlays.Clear()
+        Dim markers As New GMapOverlay("position_marker")
+        Dim marker As New GMarkerGoogle(New PointLatLng(lat, lon), GMarkerGoogleType.blue_dot)
+        markers.Markers.Add(marker)
+        gmap2.Overlays.Add(markers)
+    End Sub
+
 
     Private Sub ChannelAnalyzer_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ChannelAnalyzer.SelectedIndexChanged
         If ChannelAnalyzer.SelectedTab Is TabPage2 Then
@@ -3302,6 +3327,19 @@ Public Class Form1
             End Try
         End If
     End Sub
+
+    Private Sub DataGridView5_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
+
+        If e.RowIndex >= 0 AndAlso e.ColumnIndex >= 0 Then
+            Dim row As DataGridViewRow = DataGridView5.Rows(e.RowIndex)
+
+            Dim Longitude As Double = getDouble(row, "Column96", 0.0)
+            Dim Latitude As Double = getDouble(row, "Column97", 0.0)
+
+            ShowPosition(Latitude, Longitude)
+        End If
+    End Sub
+
 
     Private Async Sub Button32_Click(sender As Object, e As EventArgs) Handles Button32.Click
         Try
