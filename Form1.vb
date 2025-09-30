@@ -132,6 +132,7 @@ Public Class Form1
             InitializeGMap()
             LoadTaskingList()
             LoadTacDb()
+            SeedTestTargets()
             Task.Run(Sub() UpdateButtonColors())
             Await RunPeriodicUpdates()
             MessageBox.Show("Database and schema ready!", "Success")
@@ -229,49 +230,6 @@ Public Class Form1
 
         Return "Unknown"
     End Function
-
-
-    Private Async Sub SendTestLogEntries()
-        Dim client As New UdpClient()
-        Dim targetIp As String = "127.0.0.1"
-        Dim targetPort As Integer = 9001
-
-        Dim template As String =
-        "{0} StartCellRsp CH{1} time[{2}] taType[Attach] imsi[{3}] imei[{4}] ulSig[{5}] ulTa[{6}] bl_indi[{7}] tmsi[{8}] lac[{9}] dlrscp[{10}]"
-
-        Dim rnd As New Random()
-
-        For i As Integer = 1 To 20
-            Dim channelNum As Integer = rnd.Next(1, 15) ' CH1..CH14
-
-            Dim imsi As String = "51011" & rnd.Next(1000000, 9999999).ToString()
-            Dim imei As String = "3567" & rnd.Next(100000000, 999999999).ToString() ' ensure long numeric IMEI-like string
-            Dim tmsiHex As String = rnd.Next(100000, 999999).ToString("X")
-
-            Dim logLine As String = String.Format(template,
-            i,                                  ' no
-            channelNum,                         ' CH number captured as source
-            rnd.Next(1000, 9999),               ' time
-            imsi,                               ' imsi (digits)
-            imei,                               ' imei
-            rnd.Next(10, 90),                   ' ulSig (positive)
-            rnd.Next(1, 30),                    ' ulTa
-            rnd.Next(0, 2),                     ' bl_indi (0 or 1)
-            tmsiHex,                            ' tmsi (hex)
-            rnd.Next(1000, 2000),               ' lac
-            rnd.Next(0, 100)                    ' dlrscp (non-negative to match (?<rscp>\d+))
-        )
-
-            Dim bytes As Byte() = Encoding.ASCII.GetBytes(logLine)
-            Await client.SendAsync(bytes, bytes.Length, targetIp, targetPort)
-
-            Console.WriteLine("Sent test log line: " & logLine)
-            Await Task.Delay(200)
-        Next
-
-        client.Close()
-    End Sub
-
 
     Public Sub StartHeartbeat()
         If heartbeatRunning Then Exit Sub
@@ -987,6 +945,59 @@ Public Class Form1
             AddTargetRowToGrid(dateEvent, source, rat, band, providerName, Convert.ToInt32(mcc), Convert.ToInt32(mnc), targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, model, longitude, latitude)
         End If
     End Sub
+
+    Private Sub SeedTestTargets()
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() SeedTestTargets())
+            Return
+        End If
+
+        For i As Integer = 1 To 10
+            Dim dateEvent As DateTime = DateTime.Now.AddMinutes(-i)
+            Dim chNum As Integer = ((i - 1) Mod 14) + 1
+            Dim source As String = "CH" & chNum.ToString()
+
+            Dim rat As String
+            Select Case i Mod 3
+                Case 0
+                    rat = "LTE"
+                Case 1
+                    rat = "GSM"
+                Case Else
+                    rat = "WCDMA"
+            End Select
+
+            Dim band As Integer = If(rat = "LTE", 3, If(rat = "GSM", 900, 1))
+
+            Dim providerName As String = "TestProvider" & ((i Mod 4) + 1).ToString()
+            Dim mcc As Integer = 510
+            Dim mnc As Integer = (i Mod 100)
+
+            Dim targetName As String = "TestTarget" & i.ToString("D2")
+
+            Dim imsi As String = "51010" & i.ToString("D10")
+
+            Dim imei As String = "3529" & i.ToString("D11")
+
+            Dim dlChannel As Integer = 1000 + i * 10
+            Dim ulChannel As Integer = If(rat = "LTE", dlChannel - 1200 + 18000, dlChannel)
+            Dim dlFreq As Double = 1805.0 + (dlChannel - 1200) * 0.1
+            Dim ulFreq As Double = If(rat = "LTE", 1710.0 + (ulChannel - 19200) * 0.1, dlFreq - 95.0)
+
+            Dim signalLevel As Double = -80 + (i Mod 5)
+
+            Dim phoneModel As String = "TestPhone-" & (100 + i).ToString()
+            Dim longitude As Double = 36.8219 + (i * 0.001)
+            Dim latitude As Double = -1.2921 + (i * 0.001)
+
+            AddTargetRowToGrid(dateEvent, source, rat, band, providerName,
+                           Convert.ToInt32(mcc), Convert.ToInt32(mnc),
+                           targetName, imsi, imei,
+                           ulChannel, dlChannel, ulFreq, dlFreq,
+                           signalLevel, phoneModel, longitude, latitude)
+        Next
+    End Sub
+
 
     Private Sub AddTargetRowToGrid(dateEvent As DateTime,
                                source As String,
