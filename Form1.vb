@@ -1018,30 +1018,110 @@ Public Class Form1
                                longitude As Double,
                                latitude As Double)
 
-        Dim rowIndex As Integer = DataGridView1.Rows.Add()
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() AddTargetRowToGrid(dateEvent, source, rat, band, providerName, mcc, mnc, targetName, imsi, imei, ulChannel, dlChannel, ulFreq, dlFreq, signalLevel, phoneModel, longitude, latitude))
+            Return
+        End If
 
-        DataGridView1.Rows(rowIndex).Cells("Column79").Value = rowIndex + 1
-        DataGridView1.Rows(rowIndex).Cells("Column80").Value = dateEvent
-        DataGridView1.Rows(rowIndex).Cells("Column87").Value = source
-        DataGridView1.Rows(rowIndex).Cells("Column88").Value = rat
-        DataGridView1.Rows(rowIndex).Cells("Column89").Value = band
-        DataGridView1.Rows(rowIndex).Cells("Column81").Value = providerName
-        DataGridView1.Rows(rowIndex).Cells("Column82").Value = mcc
-        DataGridView1.Rows(rowIndex).Cells("Column83").Value = mnc
-        DataGridView1.Rows(rowIndex).Cells("Column84").Value = targetName
-        DataGridView1.Rows(rowIndex).Cells("Column85").Value = imsi
-        DataGridView1.Rows(rowIndex).Cells("Column86").Value = imei
-        DataGridView1.Rows(rowIndex).Cells("Column90").Value = ulChannel
-        DataGridView1.Rows(rowIndex).Cells("Column91").Value = dlChannel
-        DataGridView1.Rows(rowIndex).Cells("Column92").Value = ulFreq
-        DataGridView1.Rows(rowIndex).Cells("Column93").Value = dlFreq
-        DataGridView1.Rows(rowIndex).Cells("Column94").Value = signalLevel
-        DataGridView1.Rows(rowIndex).Cells("Column95").Value = phoneModel
-        DataGridView1.Rows(rowIndex).Cells("Column96").Value = longitude
-        DataGridView1.Rows(rowIndex).Cells("Column97").Value = latitude
+        DataGridView5.SuspendLayout()
+        Try
+            Dim dt As DataTable = Nothing
+            Dim bs As BindingSource = TryCast(DataGridView5.DataSource, BindingSource)
+            If bs IsNot Nothing Then
+                dt = TryCast(bs.DataSource, DataTable)
+            Else
+                dt = TryCast(DataGridView5.DataSource, DataTable)
+            End If
 
+            If dt IsNot Nothing Then
+                Dim newRow As DataRow = dt.NewRow()
+
+                Dim SetIfHasColumn = Sub(colName As String, val As Object)
+                                         If dt.Columns.Contains(colName) Then
+                                             newRow(colName) = If(val IsNot Nothing, val, DBNull.Value)
+                                         End If
+                                     End Sub
+
+                SetIfHasColumn("date_event", dateEvent)
+                SetIfHasColumn("source", source)
+                SetIfHasColumn("rat", rat)
+                SetIfHasColumn("band", band)
+                SetIfHasColumn("provider_name", providerName)
+                SetIfHasColumn("mcc", mcc)
+                SetIfHasColumn("mnc", mnc)
+                SetIfHasColumn("target_name", targetName)
+                SetIfHasColumn("imsi", imsi)
+                SetIfHasColumn("imei", imei)
+                SetIfHasColumn("ul_channel", ulChannel)
+                SetIfHasColumn("dl_channel", dlChannel)
+                SetIfHasColumn("ul_freq", ulFreq)
+                SetIfHasColumn("dl_freq", dlFreq)
+                SetIfHasColumn("signal_level", signalLevel)
+                SetIfHasColumn("phone_model", phoneModel)
+                SetIfHasColumn("longitude", longitude)
+                SetIfHasColumn("latitude", latitude)
+
+                If dt.Columns.Contains("no") Then
+                    Dim nextNo As Long = 1
+                    If dt.Rows.Count > 0 Then
+                        Try
+                            Dim maxVal As Long = 0
+                            For Each r As DataRow In dt.Rows
+                                If Not IsDBNull(r("no")) Then
+                                    Dim tmp As Long = 0
+                                    If Int64.TryParse(r("no").ToString(), tmp) Then
+                                        If tmp > maxVal Then maxVal = tmp
+                                    End If
+                                End If
+                            Next
+                            nextNo = maxVal + 1
+                        Catch
+                            nextNo = dt.Rows.Count + 1
+                        End Try
+                    End If
+                    newRow("no") = nextNo
+                End If
+
+                dt.Rows.InsertAt(newRow, 0)
+
+                If bs IsNot Nothing Then
+                    bs.ResetBindings(False)
+                    Try
+                        bs.Position = 0
+                    Catch
+                    End Try
+                End If
+
+            Else
+                Dim rowIndex As Integer = DataGridView5.Rows.Add()
+
+                DataGridView5.Rows(rowIndex).Cells("Column79").Value = rowIndex + 1
+                DataGridView5.Rows(rowIndex).Cells("Column80").Value = dateEvent
+                DataGridView5.Rows(rowIndex).Cells("Column87").Value = source
+                DataGridView5.Rows(rowIndex).Cells("Column88").Value = rat
+                DataGridView5.Rows(rowIndex).Cells("Column89").Value = band
+                DataGridView5.Rows(rowIndex).Cells("Column81").Value = providerName
+                DataGridView5.Rows(rowIndex).Cells("Column82").Value = mcc
+                DataGridView5.Rows(rowIndex).Cells("Column83").Value = mnc
+                DataGridView5.Rows(rowIndex).Cells("Column84").Value = targetName
+                DataGridView5.Rows(rowIndex).Cells("Column85").Value = imsi
+                DataGridView5.Rows(rowIndex).Cells("Column86").Value = imei
+                DataGridView5.Rows(rowIndex).Cells("Column90").Value = ulChannel
+                DataGridView5.Rows(rowIndex).Cells("Column91").Value = dlChannel
+                DataGridView5.Rows(rowIndex).Cells("Column92").Value = ulFreq
+                DataGridView5.Rows(rowIndex).Cells("Column93").Value = dlFreq
+                DataGridView5.Rows(rowIndex).Cells("Column94").Value = signalLevel
+                DataGridView5.Rows(rowIndex).Cells("Column95").Value = phoneModel
+                DataGridView5.Rows(rowIndex).Cells("Column96").Value = longitude
+                DataGridView5.Rows(rowIndex).Cells("Column97").Value = latitude
+            End If
+
+        Catch ex As Exception
+            Debug.WriteLine("AddTargetRowToGrid error: " & ex.ToString())
+        Finally
+            DataGridView5.ResumeLayout()
+        End Try
     End Sub
-
 
     Private Async Function InsertTargetAsync(schemaName As String,
                                          dateEvent As DateTime,
@@ -2175,6 +2255,8 @@ Public Class Form1
             selectedSchema = SelectedSchema1
             LoadBlacklistData()
             LoadWhitelistData()
+            Dim dbHelper As New DatabaseHelper()
+            LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema))
         ElseIf selectedSchema Is Nothing Then
             MessageBox.Show("Please select a database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
@@ -3407,7 +3489,6 @@ Public Class Form1
             LoadGSMData(dbHelper.GetGSMData())
             LoadWCDMAData(dbHelper.GetWCDMAData())
             LoadLTEData(dbHelper.GetLTEData())
-
         Catch ex As SqlException
             MessageBox.Show("Database error: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Catch ex As Exception
@@ -3433,6 +3514,32 @@ Public Class Form1
         DataGridView1.Columns("Column11").DataPropertyName = "bsic"
 
         ApplyFilterToDataGridViews()
+    End Sub
+
+    Private Sub LoadTargetsData(dataTable As DataTable)
+        DataGridView5.DataSource = Nothing
+        DataGridView5.AutoGenerateColumns = False
+        DataGridView5.DataSource = dataTable
+
+        DataGridView5.Columns("Column79").DataPropertyName = "no"
+        DataGridView5.Columns("Column80").DataPropertyName = "date_event"
+        DataGridView5.Columns("Column87").DataPropertyName = "source"
+        DataGridView5.Columns("Column88").DataPropertyName = "rat"
+        DataGridView5.Columns("Column89").DataPropertyName = "band"
+        DataGridView5.Columns("Column81").DataPropertyName = "provider_name"
+        DataGridView5.Columns("Column82").DataPropertyName = "mcc"
+        DataGridView5.Columns("Column83").DataPropertyName = "mnc"
+        DataGridView5.Columns("Column84").DataPropertyName = "target_name"
+        DataGridView5.Columns("Column85").DataPropertyName = "imsi"
+        DataGridView5.Columns("Column86").DataPropertyName = "imei"
+        DataGridView5.Columns("Column90").DataPropertyName = "ul_channel"
+        DataGridView5.Columns("Column91").DataPropertyName = "dl_channel"
+        DataGridView5.Columns("Column92").DataPropertyName = "ul_freq"
+        DataGridView5.Columns("Column93").DataPropertyName = "dl_freq"
+        DataGridView5.Columns("Column94").DataPropertyName = "signal_level"
+        DataGridView5.Columns("Column95").DataPropertyName = "phone_model"
+        DataGridView5.Columns("Column96").DataPropertyName = "longitude"
+        DataGridView5.Columns("Column97").DataPropertyName = "latitude"
     End Sub
 
     Private Sub LoadWCDMAData(dataTable As DataTable)

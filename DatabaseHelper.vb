@@ -2,6 +2,7 @@
 Imports System.Data.SqlClient
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 Imports Microsoft.SqlServer
+Imports System.Text.RegularExpressions
 
 Public Class DatabaseHelper
     Private ReadOnly connectionString As String = $"Server=(localdb)\MSSQLLocalDB;Database=CoreXCDb1;Integrated Security=true;"
@@ -78,6 +79,26 @@ Public Class DatabaseHelper
             MessageBox.Show($"Database error: {ex.Message}")
             Return False
         End Try
+    End Function
+
+    Public Function GetTargetsDataTableAsync(schemaName As String) As DataTable
+        Dim dt As New DataTable()
+
+        If String.IsNullOrWhiteSpace(schemaName) OrElse (Not Regex.IsMatch(schemaName, "^[A-Za-z0-9_]+$")) Then
+            Throw New ArgumentException("Invalid schema name.", NameOf(schemaName))
+        End If
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Dim query As String = $"SELECT no, date_event, source, rat, band, provider_name, mcc, mnc, target_name, imsi, imei, ul_channel, dl_channel, ul_freq, dl_freq, signal_level, phone_model, longitude, latitude FROM [{schemaName}].[targets] ORDER BY date_event DESC;"
+
+            Using command As New SqlCommand(query, conn)
+                Using adapter As New SqlDataAdapter(command)
+                    adapter.Fill(dt)
+                End Using
+            End Using
+        End Using
+            Return dt
     End Function
 
     Public Function GetGSMData() As DataTable
