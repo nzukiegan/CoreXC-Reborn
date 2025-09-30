@@ -132,7 +132,7 @@ Public Class Form1
             InitializeGMap()
             LoadTaskingList()
             LoadTacDb()
-            SeedTestTargets()
+
             Task.Run(Sub() UpdateButtonColors())
             Await RunPeriodicUpdates()
             MessageBox.Show("Database and schema ready!", "Success")
@@ -2256,7 +2256,8 @@ Public Class Form1
             LoadBlacklistData()
             LoadWhitelistData()
             Dim dbHelper As New DatabaseHelper()
-            LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema))
+            'LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema
+            SeedTestTargets()
         ElseIf selectedSchema Is Nothing Then
             MessageBox.Show("Please select a database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
