@@ -65,6 +65,7 @@ Public Class Form1
     Private selectedLatitude As Double
     Private gmap As GMapControl
     Private gmap2 As GMapControl
+    Private gmap3 As GMapControl
     Private selectedBimsi As String
     Private selectedWimsi As String
     Private selectedBImei As String
@@ -93,6 +94,7 @@ Public Class Form1
     Private Shared loaded As Boolean = False
     Private Shared ReadOnly locker As New Object()
     Private firstLoadScanResults As Boolean = True
+    Private dbHelper As DatabaseHelper
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             StartUdpListener()
@@ -101,6 +103,7 @@ Public Class Form1
             InitializeEditModeButtons()
             InitializeProgressIndicator()
             dbInitializer = New DatabaseInitializer("(localdb)\\MSSQLLocalDB", "CoreXCDb1")
+            dbHelper = New DatabaseHelper()
             Await dbInitializer.EnsureDatabaseExistsAsync()
             Await dbInitializer.ApplySchemaAsync()
             Await dbInitializer.SeedOperatorsAsync()
@@ -133,6 +136,7 @@ Public Class Form1
 
             InitializeGMap()
             InitializePositionEstimatorMap()
+            InitializeGMap3()
             LoadTaskingList()
             LoadTacDb()
 
@@ -296,6 +300,18 @@ Public Class Form1
         gmap.Zoom = 14
     End Sub
 
+    Private Sub InitializeGMap3()
+        gmap3 = New GMapControl()
+        gmap3.Dock = DockStyle.Fill
+        GroupBox46.Controls.Add(gmap3)
+
+        GMaps.Instance.Mode = AccessMode.ServerAndCache
+        gmap3.MapProvider = GMapProviders.GoogleMap
+        gmap3.MinZoom = 1
+        gmap3.MaxZoom = 20
+        gmap3.Zoom = 14
+    End Sub
+
     Private Sub InitializePositionEstimatorMap()
         gmap2 = New GMapControl()
         gmap2.Dock = DockStyle.Fill
@@ -335,14 +351,14 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub ShowPosition(lat As Double, lon As Double)
-        gmap2.Position = New PointLatLng(lat, lon)
-        gmap2.Zoom = 16
-        gmap2.Overlays.Clear()
+    Private Sub ShowPosition(gmap As GMapControl, lat As Double, lon As Double)
+        gmap.Position = New PointLatLng(lat, lon)
+        gmap.Zoom = 16
+        gmap.Overlays.Clear()
         Dim markers As New GMapOverlay("position_marker")
         Dim marker As New GMarkerGoogle(New PointLatLng(lat, lon), GMarkerGoogleType.blue_dot)
         markers.Markers.Add(marker)
-        gmap2.Overlays.Add(markers)
+        gmap.Overlays.Add(markers)
     End Sub
 
 
@@ -914,7 +930,6 @@ Public Class Form1
 
         Dim model = LookupModelByImei(m.Groups("imei").Value)
 
-        Dim dbHelper As New DatabaseHelper()
         Dim providerName As String = dbHelper.GetProviderName(mcc, mnc)
         Dim dateEvent As String = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
         Dim source As String = m.Groups("source").Value.ToString()
@@ -2292,6 +2307,16 @@ Public Class Form1
         End If
     End Sub
 
+    Private Sub TabPage5_Enter(sender As Object, e As EventArgs) Handles TabPage5.Enter
+        'LoadEvaluationData(dbHelper.GetScanDataTable(selectedSchema))
+    End Sub
+
+
+    Private Async Sub TabPage4_Enter(sender As Object, e As EventArgs) Handles TabPage4.Enter
+        LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema))
+        Await LoadSilentCallsAsync(selectedSchema)
+    End Sub
+
     Private Sub Button34_Click(sender As Object, e As EventArgs) Handles Button34.Click
         Dim dt As DataTable = TryCast(DataGridView4.DataSource, DataTable)
         If dt IsNot Nothing Then
@@ -2304,14 +2329,10 @@ Public Class Form1
             selectedSchema = SelectedSchema1
             LoadBlacklistData()
             LoadWhitelistData()
-            Dim dbHelper As New DatabaseHelper()
-            LoadTargetsData(dbHelper.GetTargetsDataTableAsync(selectedSchema))
-            Await LoadSilentCallsAsync(selectedSchema)
         ElseIf selectedSchema Is Nothing Then
             MessageBox.Show("Please select a database first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
     End Sub
-
 
     Private Sub LoadScanResults()
         Try
@@ -2425,6 +2446,10 @@ Public Class Form1
         SearchIMSI()
     End Sub
 
+    Private Sub Button55_Click(sender As Object, e As EventArgs) Handles Button55.Click
+        SearchIMSI2()
+    End Sub
+
     Private Sub Button35_Click(sender As Object, e As EventArgs) Handles Button35.Click
         If selectedLongitude <> 0 AndAlso selectedLatitude <> 0 Then
             Dim loc = LocationHelper.GetCurrentLocationFromIp()
@@ -2444,6 +2469,19 @@ Public Class Form1
             Double.TryParse(row.Cells("Column60").Value.ToString(), selectedLatitude)
         End If
     End Sub
+
+    Private Sub DataGridView6_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView6.CellClick
+        If e.RowIndex < 0 Then Return
+
+        Dim row As DataGridViewRow = DataGridView4.Rows(e.RowIndex)
+
+        If row.Cells("Column76").Value IsNot Nothing AndAlso row.Cells("Column77").Value IsNot Nothing Then
+            Dim Longitude As Double = getDouble(row, "Column76", 0.0)
+            Dim Latitude As Double = getDouble(row, "Column77", 0.0)
+            ShowPosition(gmap3, Latitude, Longitude)
+        End If
+    End Sub
+
     Private Async Function LoadChartData() As Task
         Try
             Using conn As New SqlConnection(connectionString)
@@ -3336,7 +3374,7 @@ Public Class Form1
             Dim Longitude As Double = getDouble(row, "Column96", 0.0)
             Dim Latitude As Double = getDouble(row, "Column97", 0.0)
 
-            ShowPosition(Latitude, Longitude)
+            ShowPosition(gmap2, Latitude, Longitude)
         End If
     End Sub
 
@@ -3793,6 +3831,7 @@ VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @t
         OpenForm5()
     End Sub
 
+
     Private Sub OpenForm5()
         If operatorFilter Is Nothing OrElse operatorFilter.Count = 0 Then
             Using f5 As New Form5()
@@ -3833,7 +3872,9 @@ VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @t
     End Sub
 
     Private Sub Button70_Click(sender As Object, e As EventArgs) Handles Button70.Click
-        Form9.Show()
+        Dim frm As New Form9(connectionString)
+        frm.ShowDialog()
+        LoadProvidersData(dbHelper.GetOperatorsDataTable())
     End Sub
 
 
@@ -3987,7 +4028,6 @@ VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @t
 
     Public Sub LoadDataToGridViews()
         Try
-            Dim dbHelper As New DatabaseHelper()
             LoadGSMData(dbHelper.GetGSMData())
             LoadWCDMAData(dbHelper.GetWCDMAData())
             LoadLTEData(dbHelper.GetLTEData())
@@ -3996,6 +4036,94 @@ VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @t
         Catch ex As Exception
             MessageBox.Show("Error loading data: " & ex.StackTrace, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
+    End Sub
+
+    Private Sub SearchIMSI2()
+        Dim searchImsi As String = TextBox110.Text.Trim()
+        If String.IsNullOrEmpty(searchImsi) Then
+            MessageBox.Show("Please enter an IMSI to search.", "Search IMSI", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Dim imsiCol As DataGridViewColumn = Nothing
+        For Each col As DataGridViewColumn In DataGridView6.Columns
+            If String.Equals(col.DataPropertyName, "imsi", StringComparison.OrdinalIgnoreCase) Then
+                imsiCol = col
+                Exit For
+            End If
+        Next
+
+        If imsiCol Is Nothing Then
+            MessageBox.Show("IMSI column not found in the grid.", "Search IMSI", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Dim foundIndex As Integer = -1
+        For i As Integer = 0 To DataGridView6.Rows.Count - 1
+            Dim dr As DataGridViewRow = DataGridView6.Rows(i)
+            If dr.IsNewRow Then Continue For
+
+            Dim cellVal As String = If(dr.Cells(imsiCol.Index).Value, String.Empty).ToString().Trim()
+            If String.Equals(cellVal, searchImsi, StringComparison.OrdinalIgnoreCase) Then
+                foundIndex = i
+                Exit For
+            End If
+        Next
+
+        If foundIndex = -1 Then
+            MessageBox.Show($"IMSI '{searchImsi}' not found.", "Search IMSI", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        DataGridView6.ClearSelection()
+        Dim foundRow As DataGridViewRow = DataGridView6.Rows(foundIndex)
+        foundRow.Selected = True
+
+        DataGridView6.CurrentCell = foundRow.Cells(imsiCol.Index)
+
+        Try
+            Dim firstIndex As Integer = Math.Max(0, foundIndex - 2)
+            DataGridView6.FirstDisplayedScrollingRowIndex = firstIndex
+        Catch ex As Exception
+
+        End Try
+    End Sub
+
+    Private Sub LoadProvidersData(dataTable As DataTable)
+        DataGridView7.DataSource = Nothing
+        DataGridView7.AutoGenerateColumns = False
+        DataGridView7.DataSource = dataTable
+
+        DataGridView7.Columns("Column39").DataPropertyName = "operator_name"
+        DataGridView7.Columns("Column98").DataPropertyName = "plmn"
+        DataGridView7.Columns("Column40").DataPropertyName = "mcc"
+        DataGridView7.Columns("Column41").DataPropertyName = "mnc"
+        DataGridView7.Columns("Column42").DataPropertyName = "logo_url"
+    End Sub
+
+    Private Sub LoadEvaluationData(dataTable As DataTable)
+        DataGridView6.DataSource = Nothing
+        DataGridView6.AutoGenerateColumns = False
+        DataGridView6.DataSource = dataTable
+
+        DataGridView6.Columns("Column61").DataPropertyName = "result_no"
+        DataGridView6.Columns("Column62").DataPropertyName = "date_event"
+        DataGridView6.Columns("Column63").DataPropertyName = "location_name"
+        DataGridView6.Columns("Column67").DataPropertyName = "source"
+        DataGridView6.Columns("Column64").DataPropertyName = "provider_name"
+        DataGridView6.Columns("Column65").DataPropertyName = "mcc"
+        DataGridView6.Columns("Column66").DataPropertyName = "mnc"
+        DataGridView6.Columns("Column68").DataPropertyName = "imsi"
+        DataGridView6.Columns("Column69").DataPropertyName = "imei"
+        DataGridView6.Columns("Column70").DataPropertyName = "tmsi"
+        DataGridView6.Columns("Column71").DataPropertyName = "guti"
+        DataGridView6.Columns("Column72").DataPropertyName = "count"
+        DataGridView6.Columns("Column73").DataPropertyName = "signal_level"
+        DataGridView6.Columns("Column74").DataPropertyName = "time_advance"
+        DataGridView6.Columns("Column75").DataPropertyName = "phone_model"
+        DataGridView6.Columns("Column78").DataPropertyName = "event"
+        DataGridView6.Columns("Column76").DataPropertyName = "longitude"
+        DataGridView6.Columns("Column77").DataPropertyName = "latitude"
     End Sub
 
     Private Sub LoadGSMData(dataTable As DataTable)
@@ -5567,6 +5695,119 @@ VALUES (@slot, @date_event, @source, @rat, @band, @provider_name, @mcc, @mnc, @t
 
     Private Sub Button28_Click(sender As Object, e As EventArgs) Handles Button28.Click
         StopCellOperation("192.168.1.104")
+    End Sub
+
+    Private Sub Button56_Click(sender As Object, e As EventArgs) Handles Button56.Click
+        ResetBaseStation(1)
+    End Sub
+
+    Private Sub Button57_Click(sender As Object, e As EventArgs) Handles Button57.Click
+        ResetBaseStation(2)
+    End Sub
+
+    Private Sub Button58_Click(sender As Object, e As EventArgs) Handles Button58.Click
+        ResetBaseStation(3)
+    End Sub
+
+    Private Sub Button59_Click(sender As Object, e As EventArgs) Handles Button59.Click
+        ResetBaseStation(4)
+    End Sub
+
+    Private Sub Button60_Click(sender As Object, e As EventArgs) Handles Button60.Click
+        ResetBaseStation(5)
+    End Sub
+
+    Private Sub Button61_Click(sender As Object, e As EventArgs) Handles Button61.Click
+        ResetBaseStation(6)
+    End Sub
+
+    Private Sub Button62_Click(sender As Object, e As EventArgs) Handles Button62.Click
+        ResetBaseStation(8)
+    End Sub
+
+    Private Sub Button63_Click(sender As Object, e As EventArgs) Handles Button63.Click
+        ResetBaseStation(9)
+    End Sub
+
+    Private Sub Button64_Click(sender As Object, e As EventArgs) Handles Button64.Click
+        ResetBaseStation(11)
+    End Sub
+
+    Private Sub Button65_Click(sender As Object, e As EventArgs) Handles Button65.Click
+        ResetBaseStation(12)
+    End Sub
+
+
+    Private Async Sub ResetBaseStation(channelNumber As Integer)
+        Dim ipA = GetChannelIPAddress(channelNumber)
+        If channelNumber < 5 Then
+            Dim isLte As Integer = 0
+            Using conn As New SqlClient.SqlConnection(connectionString)
+                conn.Open()
+                Dim sql As String = "SELECT ISNULL(is_lte,0) FROM base_stations WHERE channel_number = @channel_number"
+                Using cmd As New SqlClient.SqlCommand(sql, conn)
+                    cmd.Parameters.AddWithValue("@channel_number", channelNumber)
+                    Dim result = cmd.ExecuteScalar()
+                    If result IsNot Nothing Then
+                        isLte = Convert.ToInt32(result)
+                    End If
+                End Using
+            End Using
+
+            If isLte = 0 Then
+                ApplyGsmBaseChannelSettings(ipA, 0, 0, 0, 0, 0, 0)
+            End If
+            Return
+        End If
+        ApplyLteBaseChannelSettings(ipA, 0, 0, 0, 0, 0, 0)
+        dbInitializer.GetBaseStationsFromBackend(udp)
+    End Sub
+
+    Private Sub Button72_Click(sender As Object, e As EventArgs) Handles Button72.Click
+        If DataGridView7.CurrentRow IsNot Nothing Then
+            Dim drv As DataRowView = CType(DataGridView7.CurrentRow.DataBoundItem, DataRowView)
+            Dim operatorId As Integer = Convert.ToInt32(drv("operator_id"))
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = "DELETE FROM operators WHERE operator_id = @id"
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@id", operatorId)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            LoadProvidersData(dbHelper.GetOperatorsDataTable())
+        End If
+    End Sub
+
+
+    Private Sub Button66_Click(sender As Object, e As EventArgs) Handles Button66.Click
+        ResetBaseStation(13)
+    End Sub
+
+
+    Private Sub Button71_Click(sender As Object, e As EventArgs) Handles Button71.Click
+        If DataGridView7.CurrentRow Is Nothing Then
+            MessageBox.Show("Please select a provider to edit.", "Select row", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim drv As DataRowView = TryCast(DataGridView7.CurrentRow.DataBoundItem, DataRowView)
+        If drv Is Nothing Then
+            MessageBox.Show("Unable to get the selected row data.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Using frm As New FormEditProvider(connectionString, drv)
+            If frm.ShowDialog(Me) = DialogResult.OK Then
+                LoadProvidersData(dbHelper.GetOperatorsDataTable)
+            End If
+        End Using
+    End Sub
+
+    Private Sub Button67_Click(sender As Object, e As EventArgs) Handles Button67.Click
+        ResetBaseStation(14)
     End Sub
 
 End Class

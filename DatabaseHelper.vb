@@ -81,6 +81,79 @@ Public Class DatabaseHelper
         End Try
     End Function
 
+    Public Function GetScanDataTable(selectedSchema As String) As DataTable
+        If String.IsNullOrWhiteSpace(selectedSchema) Then
+            Throw New ArgumentException("selectedSchema must be provided.", NameOf(selectedSchema))
+        End If
+
+        Dim validSchemaPattern As String = "^[A-Za-z0-9_]+$"
+        If Not Regex.IsMatch(selectedSchema, validSchemaPattern) Then
+            Throw New ArgumentException("Invalid schema name.", NameOf(selectedSchema))
+        End If
+
+        Dim dt As New DataTable()
+
+        Dim query As String = $"
+        SELECT result_no,
+               date_event,
+               location_name,
+               source,
+               provider_name,
+               mcc,
+               mnc,
+               imsi,
+               imei,
+               guti,
+               tmsi,
+               signal_level,
+               time_advance,
+               longitude,
+               latitude,
+               phone_model,
+               event,
+               count
+        FROM [{selectedSchema}].scan_results
+        ORDER BY date_event DESC;"
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                Using adapter As New SqlDataAdapter(cmd)
+                    adapter.Fill(dt)
+                End Using
+            End Using
+        End Using
+
+        Return dt
+    End Function
+
+    Public Function GetOperatorsDataTable() As DataTable
+        Dim dt As New DataTable()
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+
+            Dim query As String = $"SELECT 
+                                   operator_id,
+                                   operator_name,
+                                   operator_code,
+                                   plmn,
+                                   mcc,
+                                   mnc,
+                                   logo_url
+                               FROM operators
+                               ORDER BY created_at DESC;"
+
+            Using command As New SqlCommand(query, conn)
+                Using adapter As New SqlDataAdapter(command)
+                    adapter.Fill(dt)
+                End Using
+            End Using
+        End Using
+
+        Return dt
+    End Function
+
+
     Public Function GetTargetsDataTableAsync(schemaName As String) As DataTable
         Dim dt As New DataTable()
 
